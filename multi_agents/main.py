@@ -9,10 +9,12 @@ import asyncio
 import json
 from gpt_researcher.utils.enum import Tone
 
+# Load .env file and override system environment variables
+load_dotenv(override=True)
+
 # Run with LangSmith if API key is set
 if os.environ.get("LANGCHAIN_API_KEY"):
     os.environ["LANGCHAIN_TRACING_V2"] = "true"
-load_dotenv()
 
 def open_task():
     # Get the directory of the current script

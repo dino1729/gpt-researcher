@@ -1,6 +1,6 @@
 #Ignore env containing secrets
 .env
-.venv
+.venv*
 .envrc
 
 #Ignore Virtual Env
@@ -52,3 +52,5 @@ server_log.txt
 .cursorrules
 CURSOR_RULES.md
 /.history
+
+uvicorn.pid

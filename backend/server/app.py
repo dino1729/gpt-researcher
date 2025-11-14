@@ -5,6 +5,10 @@ import time
 import logging
 import sys
 import warnings
+from dotenv import load_dotenv
+
+# Load .env file and override system environment variables
+load_dotenv(override=True)
 
 # Suppress Pydantic V2 migration warnings
 warnings.filterwarnings("ignore", message="Valid config keys have changed in V2")

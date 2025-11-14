@@ -3,7 +3,9 @@ from gpt_researcher.memory.embeddings import Memory
 import asyncio
 import os
 from dotenv import load_dotenv
-load_dotenv()
+
+# Load .env file and override system environment variables
+load_dotenv(override=True)
 
 async def main():
     cfg = Config()

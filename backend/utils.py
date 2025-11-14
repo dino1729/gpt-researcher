@@ -39,20 +39,47 @@ async def write_md_to_pdf(text: str, filename: str = "") -> str:
         text (str): Markdown text to convert.
 
     Returns:
-        str: The encoded file path of the generated PDF.
+        str: The encoded file path of the generated PDF, or empty string if failed.
     """
     file_path = f"outputs/{filename[:60]}.pdf"
 
     try:
+        import os
         from md2pdf.core import md2pdf
-        md2pdf(file_path,
-               md_content=text,
-               # md_file_path=f"{file_path}.md",
-               css_file_path="./styles/pdf_styles.css",
-               base_url=None)
-        print(f"Report written to {file_path}")
+        
+        # Find CSS file - check multiple possible locations
+        possible_css_paths = [
+            "./backend/styles/pdf_styles.css",
+            "./styles/pdf_styles.css",
+            os.path.join(os.path.dirname(__file__), "styles/pdf_styles.css")
+        ]
+        
+        css_file_path = None
+        for path in possible_css_paths:
+            if os.path.exists(path):
+                css_file_path = path
+                break
+        
+        # Generate PDF with or without CSS
+        if css_file_path:
+            md2pdf(file_path,
+                   md_content=text,
+                   css_file_path=css_file_path,
+                   base_url=None)
+        else:
+            md2pdf(file_path,
+                   md_content=text,
+                   base_url=None)
+        print(f"✅ PDF report written to {file_path}")
+    except ImportError as e:
+        print(f"⚠️ PDF generation skipped - WeasyPrint dependencies not installed: {e}")
+        print(f"   To enable PDF generation on macOS, run:")
+        print(f"   brew install cairo pango gdk-pixbuf libffi gobject-introspection")
+        return ""
     except Exception as e:
-        print(f"Error in converting Markdown to PDF: {e}")
+        print(f"❌ Error generating PDF: {e}")
+        import traceback
+        traceback.print_exc()
         return ""
 
     encoded_file_path = urllib.parse.quote(file_path)

@@ -50,6 +50,12 @@ class Memory:
                 if "openai_api_base" not in embedding_kwargs and os.environ.get("OPENAI_BASE_URL"):
                     embedding_kwargs["openai_api_base"] = os.environ["OPENAI_BASE_URL"]
 
+                # For NVIDIA embedding models, add input_type parameter via extra_body
+                # NVIDIA's asymmetric models require this parameter
+                if "nv-embedqa" in model or "llama-3.2-nv-embedqa" in model:
+                    # Use extra_body to pass additional parameters to the API
+                    embedding_kwargs["extra_body"] = {"input_type": "query"}
+
                 _embeddings = OpenAIEmbeddings(model=model, **embedding_kwargs)
             case "azure_openai":
                 from langchain_openai import AzureOpenAIEmbeddings

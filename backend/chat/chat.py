@@ -4,6 +4,10 @@ import uuid
 import json
 from fastapi import WebSocket
 from typing import List, Dict, Any
+from dotenv import load_dotenv
+
+# Load .env file and override system environment variables
+load_dotenv(override=True)
 
 from langchain_text_splitters import RecursiveCharacterTextSplitter
 from langchain_community.vectorstores import InMemoryVectorStore
@@ -67,12 +71,29 @@ class ChatAgentWithMemory:
         self.retriever = None
         self.search_metadata = None
         
-        # Initialize Tavily client
-        self.tavily_client = TavilyClient(api_key=os.environ.get("TAVILY_API_KEY"))
+        # Initialize Tavily client lazily (only when needed for search)
+        self._tavily_client = None
         
         # Process document and create vector store if not provided
         if not self.vector_store and False:
             self._setup_vector_store()
+    
+    @property
+    def tavily_client(self):
+        """Lazy initialization of Tavily client"""
+        if self._tavily_client is None:
+            tavily_api_key = os.environ.get("TAVILY_API_KEY")
+            if tavily_api_key:
+                try:
+                    self._tavily_client = TavilyClient(api_key=tavily_api_key)
+                    logger.info("Tavily client initialized successfully")
+                except Exception as e:
+                    logger.warning(f"Failed to initialize Tavily client: {e}")
+                    self._tavily_client = None
+            else:
+                logger.info("No Tavily API key found - search tool will be disabled")
+                self._tavily_client = None
+        return self._tavily_client
     
     def _setup_vector_store(self):
         """Setup vector store for document retrieval"""
@@ -109,6 +130,14 @@ class ChatAgentWithMemory:
     def quick_search(self, query):
         """Perform a web search for current information using Tavily"""
         try:
+            # Check if Tavily client is available
+            if not self.tavily_client:
+                logger.warning("Tavily client not available - returning error message")
+                return {
+                    "error": "Search functionality requires TAVILY_API_KEY to be configured",
+                    "results": []
+                }
+            
             logger.info(f"Performing web search for: {query}")
             results = self.tavily_client.search(query=query, max_results=5)
             
@@ -134,13 +163,19 @@ class ChatAgentWithMemory:
 
     async def process_chat_completion(self, messages: List[Dict[str, str]]):
         """Process chat completion using configured LLM provider with tool calling support"""
-        # Create a search tool using the utility function
-        search_tool = create_search_tool(self.quick_search)
+        # Only include search tool if Tavily is available
+        tools = []
+        if self.tavily_client:
+            search_tool = create_search_tool(self.quick_search)
+            tools.append(search_tool)
+            logger.info("Chat initialized with search tool support")
+        else:
+            logger.info("Chat initialized without search tool (no Tavily API key)")
         
         # Use the tool-enabled chat completion utility
         response, tool_calls_metadata = await create_chat_completion_with_tools(
             messages=messages,
-            tools=[search_tool],
+            tools=tools,
             model=self.config.smart_llm_model,
             llm_provider=self.config.smart_llm_provider,
             llm_kwargs=self.config.llm_kwargs,
@@ -179,16 +214,27 @@ class ChatAgentWithMemory:
         try:
             
             # Format system prompt with the report context
+            search_tool_note = ""
+            if self.tavily_client:
+                search_tool_note = """
+            You may use the quick_search tool when the user asks about information that might require current data 
+            not found in the report, such as recent events, updated statistics, or news. If there's no report available,
+            you can use the quick_search tool to find information online.
+            """
+            else:
+                search_tool_note = """
+            Note: The search tool is not available in this session. Answer based only on the report content provided.
+            If the user asks about current events or information not in the report, politely explain that you can only 
+            answer based on the report content and suggest they run a new research query for updated information.
+            """
+            
             system_prompt = f"""
             You are GPT Researcher, an autonomous research agent created by an open source community at https://github.com/assafelovic/gpt-researcher, homepage: https://gptr.dev. 
             To learn more about GPT Researcher you can suggest to check out: https://docs.gptr.dev.
             
             This is a chat about a research report that you created. Answer based on the given context and report.
             You must include citations to your answer based on the report.
-            
-            You may use the quick_search tool when the user asks about information that might require current data 
-            not found in the report, such as recent events, updated statistics, or news. If there's no report available,
-            you can use the quick_search tool to find information online.
+            {search_tool_note}
             
             You must respond in markdown format. You must make it readable with paragraphs, tables, etc when possible. 
             Remember that you're answering in a chat not a report.

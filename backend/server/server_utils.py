@@ -169,6 +169,79 @@ async def handle_start_command(websocket, data: str, manager):
     await send_file_paths(websocket, file_paths)
 
 
+async def handle_chat_command(websocket, data: str):
+    """Handle chat command from WebSocket"""
+    try:
+        # Parse chat data (format: "chat {json_data}")
+        chat_data = json.loads(data[5:])  # Skip "chat " prefix
+        
+        message = chat_data.get("message", "")
+        report = chat_data.get("report", "")
+        messages = chat_data.get("messages", [])
+        
+        # Debug logging
+        logger.info(f"Chat data keys: {list(chat_data.keys())}")
+        logger.info(f"Report length: {len(report) if report else 0} characters")
+        logger.info(f"Report preview: {report[:100] if report else '(empty)'}")
+        
+        if not message and not messages:
+            await websocket.send_json({
+                "type": "error",
+                "content": "No message provided"
+            })
+            return
+        
+        # Warn if no report provided
+        if not report:
+            logger.warning("⚠️ No report provided in chat request! AI won't have context.")
+        
+        logger.info(f"Processing chat with message: {message[:50]}...")
+        
+        # Import chat agent here to avoid circular imports
+        from backend.chat.chat import ChatAgentWithMemory
+        
+        # Create chat agent with the report
+        chat_agent = ChatAgentWithMemory(
+            report=report,
+            config_path="default",
+            headers=None
+        )
+        
+        # If we have a single message, append it to messages list
+        if message and not messages:
+            messages = [{"role": "user", "content": message}]
+        elif message:
+            messages.append({"role": "user", "content": message})
+        
+        # Process the chat and get response with metadata
+        response_content, tool_calls_metadata = await chat_agent.chat(messages, websocket)
+        
+        logger.info(f"Got chat response of length: {len(response_content) if response_content else 0}")
+        
+        # Send response back through websocket
+        response_message = {
+            "type": "chat",
+            "content": response_content,
+            "metadata": {
+                "tool_calls": tool_calls_metadata
+            } if tool_calls_metadata else None
+        }
+        
+        await websocket.send_json(response_message)
+        
+    except json.JSONDecodeError as e:
+        logger.error(f"Failed to parse chat data: {e}")
+        await websocket.send_json({
+            "type": "error",
+            "content": f"Invalid JSON in chat command: {str(e)}"
+        })
+    except Exception as e:
+        logger.error(f"Error processing chat command: {str(e)}", exc_info=True)
+        await websocket.send_json({
+            "type": "error",
+            "content": f"Error processing chat: {str(e)}"
+        })
+
 async def handle_human_feedback(data: str):
     feedback_data = json.loads(data[14:])  # Remove "human_feedback" prefix
     print(f"Received human feedback: {feedback_data}")
@@ -296,6 +369,9 @@ async def handle_websocket_communication(websocket, manager):
                 elif data.strip().startswith("human_feedback"):
                     logger.info(f"Processing human_feedback command")
                     running_task = run_long_running_task(handle_human_feedback(data))
+                elif data.strip().startswith("chat"):
+                    logger.info(f"Processing chat command")
+                    running_task = run_long_running_task(handle_chat_command(websocket, data))
                 else:
                     error_msg = f"Error: Unknown command or not enough parameters provided. Received: '{data[:100]}...'" if len(data) > 100 else f"Error: Unknown command or not enough parameters provided. Received: '{data}'"
                     logger.error(error_msg)

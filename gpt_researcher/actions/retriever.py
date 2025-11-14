@@ -65,6 +65,10 @@ def get_retriever(retriever: str):
             from gpt_researcher.retrievers import MCPRetriever
 
             return MCPRetriever
+        case "firecrawl":
+            from gpt_researcher.retrievers import FirecrawlSearch
+
+            return FirecrawlSearch
 
         case _:
             return None

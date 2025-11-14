@@ -875,6 +875,9 @@ const GPTResearcher = (() => {
       } else if (data.type === 'report') {
         // Add to reportContent for history
         reportContent += data.output;
+        
+        // Update currentReport for chat context :-)
+        currentReport += data.output;
 
         // Get the current report_type
         const report_type = document.querySelector('select[name="report_type"]').value;
@@ -910,9 +913,11 @@ const GPTResearcher = (() => {
           saveToHistory(reportContent, downloadLinkData);
 
           // Reset variables for next research session
+          // NOTE: We do NOT reset currentReport here because users need it for chat!
+          // currentReport is only reset when starting a NEW research (line 786) :-)
           reportContent = '';
           allReports = '';
-          currentReport = '';
+          // currentReport = '';  // ⚠️ REMOVED - Keep report available for chat
           isFirstReport = true;
         }
 
@@ -1079,15 +1084,23 @@ const GPTResearcher = (() => {
     // Store these links for history
     const currentLinks = { pdf, docx, md, json };
 
-    // Helper function to safely update link
+    // Helper function to safely update link :-)
     const updateLink = (id, path) => {
       const element = document.getElementById(id);
-      if (element && path) {
-        console.log(`Setting ${id} href to:`, path);
-        element.setAttribute('href', path);
-        element.classList.remove('disabled');
+      if (element) {
+        if (path) {
+          console.log(`Setting ${id} href to:`, path);
+          element.setAttribute('href', path);
+          element.classList.remove('disabled');
+          element.style.display = ''; // Show the button
+        } else {
+          console.warn(`Path not provided for ${id} - hiding button`);
+          element.classList.add('disabled');
+          element.setAttribute('href', 'javascript:void(0)'); // Prevent navigation
+          element.style.display = 'none'; // Hide the button if no path
+        }
       } else {
-        console.warn(`Either element ${id} not found or path not provided`);
+        console.warn(`Element ${id} not found`);
       }
     };
 
@@ -1877,8 +1890,11 @@ const GPTResearcher = (() => {
     // Add loading indicator
     const loadingId = addLoadingIndicator();
 
-    // Prepare the message to send
-    const messageToSend = `chat ${JSON.stringify({ message: message })}`;
+    // Prepare the message to send - include the current report for context :-)
+    const messageToSend = `chat ${JSON.stringify({ 
+      message: message,
+      report: currentReport || ''
+    })}`;
 
     // Send message through WebSocket
     if (socket && socket.readyState === WebSocket.OPEN) {

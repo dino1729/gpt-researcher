@@ -1,24 +1,43 @@
 # Stage 1: Browser and build tools installation
-#FROM python:3.13.3-slim-bookworm AS install-browser
+# Compatible with ARM64 (Raspberry Pi) and AMD64 (x86) :-)
 FROM python:3.11.4-slim-bullseye AS install-browser
 
-# Install Chromium, Chromedriver, Firefox, Geckodriver, and build tools in one layer
+# Install browsers, drivers, build tools, and WeasyPrint dependencies for PDF generation
 RUN apt-get update \
     && apt-get install -y gnupg wget ca-certificates --no-install-recommends \
     && ARCH=$(dpkg --print-architecture) \
-    && wget -qO - https://dl.google.com/linux/linux_signing_key.pub | apt-key add - \
-    && echo "deb [arch=${ARCH}] http://dl.google.com/linux/chrome/deb/ stable main" > /etc/apt/sources.list.d/google-chrome.list \
-    && apt-get update \
-    && apt-get install -y chromium chromium-driver \
-    && chromium --version && chromedriver --version \
-    && apt-get install -y --no-install-recommends firefox-esr build-essential \
+    # Install WeasyPrint system dependencies for PDF generation :-)
+    && apt-get install -y --no-install-recommends \
+        build-essential \
+        python3-dev \
+        libcairo2 \
+        libpango-1.0-0 \
+        libpangocairo-1.0-0 \
+        libgdk-pixbuf2.0-0 \
+        libffi-dev \
+        shared-mime-info \
+        libgobject-2.0-0 \
+    # Install Chromium/Chrome based on architecture
+    && if [ "$ARCH" = "arm64" ]; then \
+        echo "🍓 Installing Chromium for ARM64 (Raspberry Pi)..." \
+        && apt-get install -y chromium chromium-driver \
+        && chromium --version && chromedriver --version; \
+    else \
+        echo "💻 Installing Chrome for AMD64..." \
+        && wget -qO - https://dl.google.com/linux/linux_signing_key.pub | apt-key add - \
+        && echo "deb [arch=${ARCH}] http://dl.google.com/linux/chrome/deb/ stable main" > /etc/apt/sources.list.d/google-chrome.list \
+        && apt-get update \
+        && apt-get install -y chromium chromium-driver; \
+    fi \
+    # Install Firefox and Geckodriver
+    && apt-get install -y --no-install-recommends firefox-esr \
     && GECKO_ARCH=$(case ${ARCH} in amd64) echo "linux64" ;; arm64) echo "linux-aarch64" ;; *) echo "linux64" ;; esac) \
     && wget https://github.com/mozilla/geckodriver/releases/download/v0.36.0/geckodriver-v0.36.0-${GECKO_ARCH}.tar.gz \
     && tar -xvzf geckodriver-v0.36.0-${GECKO_ARCH}.tar.gz \
     && chmod +x geckodriver \
     && mv geckodriver /usr/local/bin/ \
     && rm geckodriver-v0.36.0-${GECKO_ARCH}.tar.gz \
-    && rm -rf /var/lib/apt/lists/*  # Clean up apt lists to reduce image size
+    && rm -rf /var/lib/apt/lists/*
 
 # Stage 2: Python dependencies installation
 FROM install-browser AS gpt-researcher-install
