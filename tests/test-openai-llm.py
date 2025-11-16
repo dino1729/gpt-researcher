@@ -1,4 +1,5 @@
 import asyncio
+import os
 from gpt_researcher.utils.llm import get_llm
 from gpt_researcher import GPTResearcher
 from dotenv import load_dotenv
@@ -6,9 +7,9 @@ load_dotenv()
 
 async def main():
 
-    # Example usage of get_llm function
+    # Example usage of get_llm function - model must be set in .env file
     llm_provider = "openai"
-    model = "gpt-3.5-turbo" 
+    model = os.getenv("FAST_LLM", "openai:gpt-4o-mini").split(":")[-1]  # Get model from env, default to gpt-4o-mini
     temperature = 0.7
     max_tokens = 1000
 

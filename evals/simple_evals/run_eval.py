@@ -76,10 +76,11 @@ async def main(num_examples: int):
         raise ValueError("num_examples must be at least 1")
         
     try:
-        # Initialize the evaluator with specified number of examples
+        # Initialize the evaluator with specified number of examples - model must be set in .env file
+        grader_model_name = os.getenv("SMART_LLM", "openai:gpt-4o").split(":")[-1]  # Get model from env, default to gpt-4o
         grader_model = ChatOpenAI(
             temperature=0, 
-            model_name="gpt-4-turbo",
+            model_name=grader_model_name,
             openai_api_key=os.getenv("OPENAI_API_KEY")
         )
         evaluator = SimpleQAEval(grader_model=grader_model, num_examples=num_examples)

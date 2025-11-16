@@ -2,6 +2,7 @@
 Evaluate model outputs for hallucination using the judges library.
 """
 import logging
+import os
 from pathlib import Path
 from typing import Dict, List, Optional
 
@@ -18,8 +19,14 @@ logger = logging.getLogger(__name__)
 class HallucinationEvaluator:
     """Evaluates model outputs for hallucination using the judges library."""
     
-    def __init__(self, model: str = "openai/gpt-4o"):
-        """Initialize the hallucination evaluator."""
+    def __init__(self, model: str = None):
+        """Initialize the hallucination evaluator - model must be set in .env file."""
+        # Get model from env variable, default to gpt-4o
+        if model is None:
+            model = os.getenv("SMART_LLM", "openai:gpt-4o")
+            # Extract just the model name if in format "provider:model"
+            if ":" in model:
+                model = f"{model.split(':')[0]}/{model.split(':')[1]}"
             
         self.summary_judge = HaluEvalDocumentSummaryNonFactual(model=model)
         
