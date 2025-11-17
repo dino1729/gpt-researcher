@@ -210,6 +210,13 @@
                 </select>
             </div>
             <div class="form-group">
+                <label for="llm_provider_mode" class="agent-question">Which LLM provider would you like to use?</label>
+                <select name="llm_provider_mode" id="llm_provider_mode" class="form-control highlight-connection" required>
+                    <option value="litellm">LiteLLM - Use online models via LiteLLM</option>
+                    <option value="ollama">Ollama - Use local models via Ollama</option>
+                </select>
+            </div>
+            <div class="form-group">
                 <label for="report_source" class="agent-question">What sources would you like me to research
                     from?</label>
                 <p class="text-left mt-0 pt-0" style="font-size: 0.7rem;">You can now do research on local documents as

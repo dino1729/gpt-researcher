@@ -17,6 +17,66 @@ import logging
 
 logger = logging.getLogger(__name__)
 
+
+def apply_llm_provider_mode(llm_provider_mode: str) -> None:
+    """
+    Apply environment variable overrides based on the selected LLM provider mode.
+    
+    Args:
+        llm_provider_mode: Either 'ollama' for local models or 'litellm' for online models :-)
+    """
+    if llm_provider_mode == "ollama":
+        # Override with Ollama environment variables
+        if os.getenv("OLLAMA_BASE_URL"):
+            os.environ["OPENAI_BASE_URL"] = os.getenv("OLLAMA_BASE_URL")
+            logger.info(f"Using Ollama base URL: {os.getenv('OLLAMA_BASE_URL')}")
+        
+        if os.getenv("OLLAMA_FAST_LLM"):
+            os.environ["FAST_LLM"] = os.getenv("OLLAMA_FAST_LLM")
+            logger.info(f"Using Ollama fast LLM: {os.getenv('OLLAMA_FAST_LLM')}")
+        
+        if os.getenv("OLLAMA_SMART_LLM"):
+            os.environ["SMART_LLM"] = os.getenv("OLLAMA_SMART_LLM")
+            logger.info(f"Using Ollama smart LLM: {os.getenv('OLLAMA_SMART_LLM')}")
+        
+        if os.getenv("OLLAMA_STRATEGIC_LLM"):
+            os.environ["STRATEGIC_LLM"] = os.getenv("OLLAMA_STRATEGIC_LLM")
+            logger.info(f"Using Ollama strategic LLM: {os.getenv('OLLAMA_STRATEGIC_LLM')}")
+        
+        if os.getenv("OLLAMA_EMBEDDING"):
+            os.environ["EMBEDDING"] = os.getenv("OLLAMA_EMBEDDING")
+            logger.info(f"Using Ollama embedding: {os.getenv('OLLAMA_EMBEDDING')}")
+    
+    elif llm_provider_mode == "litellm":
+        # Override with LiteLLM environment variables
+        if os.getenv("LITELLM_BASE_URL"):
+            os.environ["OPENAI_BASE_URL"] = os.getenv("LITELLM_BASE_URL")
+            logger.info(f"Using LiteLLM base URL: {os.getenv('LITELLM_BASE_URL')}")
+        
+        if os.getenv("LITELLM_API_KEY"):
+            os.environ["OPENAI_API_KEY"] = os.getenv("LITELLM_API_KEY")
+            logger.info("Using LiteLLM API key")
+        
+        if os.getenv("LITELLM_FAST_LLM"):
+            os.environ["FAST_LLM"] = os.getenv("LITELLM_FAST_LLM")
+            logger.info(f"Using LiteLLM fast LLM: {os.getenv('LITELLM_FAST_LLM')}")
+        
+        if os.getenv("LITELLM_SMART_LLM"):
+            os.environ["SMART_LLM"] = os.getenv("LITELLM_SMART_LLM")
+            logger.info(f"Using LiteLLM smart LLM: {os.getenv('LITELLM_SMART_LLM')}")
+        
+        if os.getenv("LITELLM_STRATEGIC_LLM"):
+            os.environ["STRATEGIC_LLM"] = os.getenv("LITELLM_STRATEGIC_LLM")
+            logger.info(f"Using LiteLLM strategic LLM: {os.getenv('LITELLM_STRATEGIC_LLM')}")
+        
+        if os.getenv("LITELLM_EMBEDDING"):
+            os.environ["EMBEDDING"] = os.getenv("LITELLM_EMBEDDING")
+            logger.info(f"Using LiteLLM embedding: {os.getenv('LITELLM_EMBEDDING')}")
+    
+    else:
+        logger.warning(f"Unknown LLM provider mode: {llm_provider_mode}. Using default configuration.")
+
+
 class CustomLogsHandler:
     """Custom handler to capture streaming logs from the research process"""
     def __init__(self, websocket, task: str):
@@ -130,11 +190,15 @@ async def handle_start_command(websocket, data: str, manager):
         mcp_enabled,
         mcp_strategy,
         mcp_configs,
+        llm_provider_mode,
     ) = extract_command_data(json_data)
 
     if not task or not report_type:
         print("Error: Missing task or report_type")
         return
+
+    # Apply LLM provider mode environment overrides :-)
+    apply_llm_provider_mode(llm_provider_mode)
 
     # Create logs handler with websocket and task
     logs_handler = CustomLogsHandler(websocket, task)
@@ -402,4 +466,5 @@ def extract_command_data(json_data: Dict) -> tuple:
         json_data.get("mcp_enabled", False),
         json_data.get("mcp_strategy", "fast"),
         json_data.get("mcp_configs", []),
+        json_data.get("llm_provider_mode", "litellm"),
     )

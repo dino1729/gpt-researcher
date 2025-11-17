@@ -967,6 +967,7 @@ const GPTResearcher = (() => {
         'select[name="report_source"]'
       ).value
       const tone = document.querySelector('select[name="tone"]').value
+      const llm_provider_mode = document.querySelector('select[name="llm_provider_mode"]').value
       const agent = document.querySelector('input[name="agent"]:checked').value
       let source_urls = tags
 
@@ -990,6 +991,7 @@ const GPTResearcher = (() => {
         tone: tone,
         agent: agent,
         query_domains: query_domains,
+        llm_provider_mode: llm_provider_mode,
       }
 
       // Add MCP configuration if enabled

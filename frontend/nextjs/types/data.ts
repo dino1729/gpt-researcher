@@ -48,6 +48,7 @@ export interface ChatBoxSettings {
   mcp_enabled: boolean;
   mcp_configs: MCPConfig[];
   mcp_strategy?: string;
+  llm_provider_mode?: 'ollama' | 'litellm';
 }
 
 export interface Domain {

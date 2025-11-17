@@ -3,6 +3,7 @@ import FileUpload from "../Settings/FileUpload";
 import ToneSelector from "../Settings/ToneSelector";
 import MCPSelector from "../Settings/MCPSelector";
 import LayoutSelector from "../Settings/LayoutSelector";
+import LLMProviderSelector from "../Settings/LLMProviderSelector";
 import { useAnalytics } from "../../hooks/useAnalytics";
 import { ChatBoxSettings, Domain, MCPConfig } from '@/types/data';
 
@@ -89,6 +90,14 @@ export default function ResearchForm({
     }));
   };
 
+  const onLLMProviderChange = (e: { target: { value: any } }) => {
+    const { value } = e.target;
+    setChatBoxSettings((prevSettings: any) => ({
+      ...prevSettings,
+      llm_provider_mode: value,
+    }));
+  };
+
   const handleSubmit = (e: React.FormEvent) => {
     e.preventDefault();
     if (onFormSubmit) {
@@ -153,6 +162,11 @@ export default function ResearchForm({
       ) : null}
       
       <ToneSelector tone={tone} onToneChange={onToneChange} />
+
+      <LLMProviderSelector 
+        llmProviderMode={chatBoxSettings.llm_provider_mode || 'litellm'} 
+        onLLMProviderChange={onLLMProviderChange} 
+      />
 
       <MCPSelector 
         mcpEnabled={chatBoxSettings.mcp_enabled || false}

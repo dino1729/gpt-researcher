@@ -45,6 +45,7 @@ export default function ResearchPage({ params }: { params: { id: string } }) {
       mcp_enabled: false,
       mcp_configs: [],
       mcp_strategy: "fast",
+      llm_provider_mode: 'litellm' as 'ollama' | 'litellm',
     };
 
     // Try to load all settings from localStorage
