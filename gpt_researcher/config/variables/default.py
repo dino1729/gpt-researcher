@@ -1,7 +1,7 @@
 from .base import BaseConfig
 
 DEFAULT_CONFIG: BaseConfig = {
-    "RETRIEVER": "tavily",
+    "RETRIEVER": "firecrawl",
     "EMBEDDING": "openai:text-embedding-3-small",
     "SIMILARITY_THRESHOLD": 0.42,
     "FAST_LLM": "",  # Must be set in .env file (e.g., FAST_LLM=openai:gpt-4o-mini)

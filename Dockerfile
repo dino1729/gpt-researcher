@@ -1,83 +1,36 @@
-# Stage 1: Browser and build tools installation
-# Compatible with ARM64 (Raspberry Pi) and AMD64 (x86) :-)
-FROM python:3.11.4-slim-bullseye AS install-browser
+# Simple single-stage Dockerfile for GPT Researcher
+FROM python:3.11-slim
 
-# Install browsers, drivers, build tools, and WeasyPrint dependencies for PDF generation
-RUN apt-get update \
-    && apt-get install -y gnupg wget ca-certificates --no-install-recommends \
-    && ARCH=$(dpkg --print-architecture) \
-    # Install WeasyPrint system dependencies for PDF generation :-)
-    && apt-get install -y --no-install-recommends \
-        build-essential \
-        python3-dev \
-        libcairo2 \
-        libpango-1.0-0 \
-        libpangocairo-1.0-0 \
-        libgdk-pixbuf2.0-0 \
-        libffi-dev \
-        shared-mime-info \
-        libgobject-2.0-0 \
-    # Install Chromium/Chrome based on architecture
-    && if [ "$ARCH" = "arm64" ]; then \
-        echo "🍓 Installing Chromium for ARM64 (Raspberry Pi)..." \
-        && apt-get install -y chromium chromium-driver \
-        && chromium --version && chromedriver --version; \
-    else \
-        echo "💻 Installing Chrome for AMD64..." \
-        && wget -qO - https://dl.google.com/linux/linux_signing_key.pub | apt-key add - \
-        && echo "deb [arch=${ARCH}] http://dl.google.com/linux/chrome/deb/ stable main" > /etc/apt/sources.list.d/google-chrome.list \
-        && apt-get update \
-        && apt-get install -y chromium chromium-driver; \
-    fi \
-    # Install Firefox and Geckodriver
-    && apt-get install -y --no-install-recommends firefox-esr \
-    && GECKO_ARCH=$(case ${ARCH} in amd64) echo "linux64" ;; arm64) echo "linux-aarch64" ;; *) echo "linux64" ;; esac) \
-    && wget https://github.com/mozilla/geckodriver/releases/download/v0.36.0/geckodriver-v0.36.0-${GECKO_ARCH}.tar.gz \
-    && tar -xvzf geckodriver-v0.36.0-${GECKO_ARCH}.tar.gz \
-    && chmod +x geckodriver \
-    && mv geckodriver /usr/local/bin/ \
-    && rm geckodriver-v0.36.0-${GECKO_ARCH}.tar.gz \
+WORKDIR /app
+
+# Install system dependencies for PDF generation (WeasyPrint)
+RUN apt-get update && apt-get install -y --no-install-recommends \
+    build-essential \
+    libcairo2 \
+    libpango-1.0-0 \
+    libpangocairo-1.0-0 \
+    libgdk-pixbuf-2.0-0 \
+    libffi-dev \
+    shared-mime-info \
     && rm -rf /var/lib/apt/lists/*
 
-# Stage 2: Python dependencies installation
-FROM install-browser AS gpt-researcher-install
+# Copy requirements and install Python dependencies
+COPY requirements.txt .
+RUN pip install --no-cache-dir -r requirements.txt
 
-ENV PIP_ROOT_USER_ACTION=ignore
-WORKDIR /usr/src/app
+# Copy application code
+COPY . .
 
-# Copy and install Python dependencies in a single layer to optimize cache usage
-COPY ./requirements.txt ./requirements.txt
-COPY ./multi_agents/requirements.txt ./multi_agents/requirements.txt
+# Download fonts for PDF generation (Monaco, San Francisco Pro)
+RUN python3 scripts/download_fonts.py --fonts-dir /app/fonts
 
-RUN pip install --upgrade pip && \
-    pip install --no-cache-dir -r requirements.txt --upgrade --prefer-binary && \
-    pip install --no-cache-dir -r multi_agents/requirements.txt --upgrade --prefer-binary
+# Copy and set up entrypoint script
+COPY docker-entrypoint.sh /usr/local/bin/
+RUN chmod +x /usr/local/bin/docker-entrypoint.sh
 
-# Stage 3: Final stage with non-root user and app
-FROM gpt-researcher-install AS gpt-researcher
+# Expose port
+EXPOSE 8000
 
-# Basic server configuration
-ARG HOST=0.0.0.0
-ENV HOST=${HOST}
-ARG PORT=8000
-ENV PORT=${PORT}
-EXPOSE ${PORT}
-
-# Uvicorn parameters used in CMD
-ARG WORKERS=1
-ENV WORKERS=${WORKERS}
-
-# Create a non-root user for security
-# NOTE: Don't use this if you are relying on `_check_pkg` to pip install packages dynamically.
-RUN useradd -ms /bin/bash gpt-researcher && \
-    chown -R gpt-researcher:gpt-researcher /usr/src/app && \
-    # Add these lines to create and set permissions for outputs directory
-    mkdir -p /usr/src/app/outputs && \
-    chown -R gpt-researcher:gpt-researcher /usr/src/app/outputs && \
-    chmod 777 /usr/src/app/outputs
-USER gpt-researcher
-WORKDIR /usr/src/app
-
-# Copy the rest of the application files with proper ownership
-COPY --chown=gpt-researcher:gpt-researcher ./ ./
-CMD uvicorn main:app --host ${HOST} --port ${PORT} --workers ${WORKERS}
+# Set entrypoint and default command
+ENTRYPOINT ["docker-entrypoint.sh"]
+CMD ["uvicorn", "main:app", "--host", "0.0.0.0", "--port", "8000"]

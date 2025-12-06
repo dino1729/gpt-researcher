@@ -54,3 +54,7 @@ CURSOR_RULES.md
 /.history
 
 uvicorn.pid
+
+# Locally downloaded fonts for PDF generation
+fonts/*.ttf
+fonts/*.otf

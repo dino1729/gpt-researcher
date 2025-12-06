@@ -22,7 +22,7 @@ def map_with_progress(fn: Callable[[T], R], items: List[T]) -> List[R]:
 load_dotenv()
 
 # Verify all required environment variables
-required_env_vars = ["OPENAI_API_KEY", "TAVILY_API_KEY", "LANGCHAIN_API_KEY"]
+required_env_vars = ["OPENAI_API_KEY", "FIRECRAWL_API_KEY", "LANGCHAIN_API_KEY"]
 for var in required_env_vars:
     if not os.getenv(var):
         raise ValueError(f"{var} not found in environment variables")

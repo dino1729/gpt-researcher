@@ -45,12 +45,12 @@ class Config:
             setattr(self, key.lower(), value)
 
         # Handle RETRIEVER with default value
-        retriever_env = os.environ.get("RETRIEVER", config.get("RETRIEVER", "tavily"))
+        retriever_env = os.environ.get("RETRIEVER", config.get("RETRIEVER", "firecrawl"))
         try:
             self.retrievers = self.parse_retrievers(retriever_env)
         except ValueError as e:
-            print(f"Warning: {str(e)}. Defaulting to 'tavily' retriever.")
-            self.retrievers = ["tavily"]
+            print(f"Warning: {str(e)}. Defaulting to 'firecrawl' retriever.")
+            self.retrievers = ["firecrawl"]
 
     def _set_embedding_attributes(self) -> None:
         self.embedding_provider, self.embedding_model = self.parse_embedding(

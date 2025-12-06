@@ -16,7 +16,6 @@ from . import (
     WebBaseLoaderScraper,
     BrowserScraper,
     NoDriverScraper,
-    TavilyExtract,
     FireCrawl,
 )
 
@@ -36,8 +35,6 @@ class Scraper:
         self.session = requests.Session()
         self.session.headers.update({"User-Agent": user_agent})
         self.scraper = scraper
-        if self.scraper == "tavily_extract":
-            self._check_pkg(self.scraper)
         if self.scraper == "firecrawl":
             self._check_pkg(self.scraper)
         self.logger = logging.getLogger(__name__)
@@ -61,10 +58,6 @@ class Scraper:
         with its required information and call check_pkg() during initialization.
         """
         pkg_map = {
-            "tavily_extract": {
-                "package_installation_name": "tavily-python",
-                "import_name": "tavily",
-            },
             "firecrawl": {
                 "package_installation_name": "firecrawl-py",
                 "import_name": "firecrawl",
@@ -174,7 +167,6 @@ class Scraper:
             "web_base_loader": WebBaseLoaderScraper,
             "browser": BrowserScraper,
             "nodriver": NoDriverScraper,
-            "tavily_extract": TavilyExtract,
             "firecrawl": FireCrawl,
         }
 

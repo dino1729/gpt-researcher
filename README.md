@@ -67,7 +67,7 @@ Steps:
 - 🖼️ Smart image scraping and filtering for reports.
 - 📜 Generate detailed reports exceeding 2,000 words.
 - 🌐 Aggregate over 20 sources for objective conclusions.
-- 🖥️ Frontend available in lightweight (HTML/CSS/JS) and production-ready (NextJS + Tailwind) versions.
+- 🖥️ Frontend available as a lightweight single-page application (HTML/CSS/JS).
 - 🔍 JavaScript-enabled web scraping.
 - 📂 Maintains memory and context throughout research.
 - 📄 Export reports to PDF, Word, and other formats.
@@ -115,6 +115,16 @@ See the [Documentation](https://docs.gptr.dev/docs/gpt-researcher/getting-starte
 Visit [http://localhost:8000](http://localhost:8000) to start.
 
 For other setups (e.g., Poetry or virtual environments), check the [Getting Started page](https://docs.gptr.dev/docs/gpt-researcher/getting-started).
+
+#### Fonts required for PDF export
+
+PDF generation relies on Monaco (for code) and Apple's San Francisco Pro Text (body/italic). To ensure those exact fonts are available on every operating system, download them into the local `fonts/` directory:
+
+```bash
+python scripts/download_fonts.py
+```
+
+The script fetches Monaco plus the San Francisco Pro Text regular and italic faces so the resulting PDFs match the macOS styling. These fonts remain subject to Apple's font license—only use them where that license allows. Re-run the command with `--force` if you ever need to refresh the files.
 
 ## Run as PIP package
 ```bash
@@ -256,9 +266,7 @@ GPT-Researcher now features an enhanced frontend to improve the user experience 
 - Interactive display of research findings
 - Customizable settings for tailored research experiences
 
-Two deployment options are available:
-1. A lightweight static frontend served by FastAPI
-2. A feature-rich NextJS application for advanced functionality
+The frontend is a lightweight static single-page application served by FastAPI, featuring vanilla JavaScript for optimal performance and simplicity.
 
 For detailed setup instructions and more information about the frontend features, please visit our [documentation page](https://docs.gptr.dev/docs/gpt-researcher/frontend/introduction).
 

@@ -6,6 +6,7 @@ import logging
 import sys
 import warnings
 from dotenv import load_dotenv
+import httpx
 
 # Load .env file and override system environment variables
 load_dotenv(override=True)
@@ -20,6 +21,7 @@ from fastapi.middleware.cors import CORSMiddleware
 from fastapi.staticfiles import StaticFiles
 from fastapi.responses import FileResponse, JSONResponse, HTMLResponse
 from pydantic import BaseModel, ConfigDict
+import httpx
 
 # Add the parent directory to sys.path to make sure we can import from server
 sys.path.insert(0, os.path.abspath(os.path.dirname(os.path.dirname(__file__))))
@@ -173,6 +175,80 @@ async def get_report_by_id(research_id: str):
     """Get a specific research report by ID - no database configured."""
     logger.debug(f"No database configured - cannot retrieve report {research_id}")
     raise HTTPException(status_code=404, detail="Report not found")
+
+
+@app.get("/api/ollama/models")
+async def list_ollama_models(base_url: str | None = None):
+    """Fetch available Ollama models from the given server."""
+    resolved_base = (base_url or os.getenv("OLLAMA_BASE_URL") or "http://localhost:11434").rstrip("/")
+    api_url = f"{resolved_base}/api/tags"
+
+    try:
+        async with httpx.AsyncClient(timeout=10.0) as client:
+            response = await client.get(api_url)
+            response.raise_for_status()
+            payload = response.json()
+
+        models = []
+        for model in payload.get("models", []):
+            name = model.get("model") or model.get("name") or model.get("id")
+            if name:
+                models.append(name)
+
+        return {"models": models, "base_url": resolved_base}
+    except httpx.HTTPStatusError as exc:
+        logger.error(f"Failed to fetch Ollama models from {api_url}: {exc.response.status_code} {exc.response.text}")
+        raise HTTPException(status_code=exc.response.status_code, detail="Unable to fetch models from Ollama server")
+    except httpx.RequestError as exc:
+        logger.error(f"Error connecting to Ollama at {api_url}: {exc}")
+        raise HTTPException(status_code=502, detail=f"Could not reach Ollama at {resolved_base}")
+    except Exception as exc:
+        logger.error(f"Unexpected error while querying Ollama models at {api_url}: {exc}")
+        raise HTTPException(status_code=500, detail="Unexpected error while fetching Ollama models")
+
+
+@app.post("/api/litellm/models")
+async def list_litellm_models(payload: Dict[str, Any]):
+    """Fetch available models from a LiteLLM-compatible server (OpenAI-style /v1/models)."""
+    base_url = (payload.get("base_url") or os.getenv("LITELLM_BASE_URL") or "http://localhost:4000/v1").rstrip("/")
+    api_key = payload.get("api_key") or os.getenv("LITELLM_API_KEY") or ""
+    models_url = f"{base_url}/models"
+
+    headers = {}
+    if api_key:
+        headers["Authorization"] = f"Bearer {api_key}"
+
+    try:
+        async with httpx.AsyncClient(timeout=10.0) as client:
+            resp = await client.get(models_url, headers=headers)
+            resp.raise_for_status()
+            data = resp.json()
+
+        models = []
+        if isinstance(data, dict):
+            items = data.get("data", []) or data.get("models", []) or []
+            for m in items:
+                if isinstance(m, dict):
+                    name = m.get("id") or m.get("name") or m.get("model")
+                    if name:
+                        models.append(name)
+        elif isinstance(data, list):
+            for m in data:
+                if isinstance(m, dict):
+                    name = m.get("id") or m.get("name") or m.get("model")
+                    if name:
+                        models.append(name)
+
+        return {"models": models, "base_url": base_url}
+    except httpx.HTTPStatusError as exc:
+        logger.error(f"Failed to fetch LiteLLM models from {models_url}: {exc.response.status_code} {exc.response.text}")
+        raise HTTPException(status_code=exc.response.status_code, detail="Unable to fetch models from LiteLLM server")
+    except httpx.RequestError as exc:
+        logger.error(f"Error connecting to LiteLLM at {models_url}: {exc}")
+        raise HTTPException(status_code=502, detail=f"Could not reach LiteLLM at {base_url}")
+    except Exception as exc:
+        logger.error(f"Unexpected error while querying LiteLLM models at {models_url}: {exc}")
+        raise HTTPException(status_code=500, detail="Unexpected error while fetching LiteLLM models")
 
 
 @app.post("/api/reports")

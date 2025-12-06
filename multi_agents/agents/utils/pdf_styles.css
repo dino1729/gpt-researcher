@@ -1,53 +1,245 @@
+/* Enhanced PDF Styles with Monaco and San Francisco Fonts */
+
+/* Import Monaco font for code/monospace */
+@font-face {
+    font-family: 'Monaco';
+    src: local('Monaco'),
+         local('Monaco Regular'),
+         url('../../../fonts/Monaco.ttf') format('truetype');
+    font-weight: normal;
+    font-style: normal;
+    font-display: swap;
+}
+
+/* Import San Francisco (SFNS) font for body text (downloaded locally) */
+@font-face {
+    font-family: 'San Francisco';
+    src: local('SF Pro Text'),
+         local('San Francisco'),
+         url('../../../fonts/SF-Pro-Text-Regular.otf') format('opentype');
+    font-weight: normal;
+    font-style: normal;
+    font-display: swap;
+}
+
+@font-face {
+    font-family: 'San Francisco';
+    src: local('SF Pro Text Italic'),
+         url('../../../fonts/SF-Pro-Text-RegularItalic.otf') format('opentype');
+    font-weight: normal;
+    font-style: italic;
+    font-display: swap;
+}
+
+/* Root and Body Styling */
 body {
-    font-family: 'Libre Baskerville', serif;
-    font-size: 12pt; /* standard size for academic papers */
-    line-height: 1.6; /* for readability */
-    color: #333; /* softer on the eyes than black */
-    background-color: #fff; /* white background */
-    margin: 0;
+    font-family: 'San Francisco', -apple-system, BlinkMacSystemFont, 'Segoe UI', 'Helvetica Neue', Arial, sans-serif;
+    font-size: 11pt;
+    line-height: 1.6;
+    color: #1d1d1f; /* Apple's dark text color */
+    background-color: #fff;
+    margin: 40px;
     padding: 0;
 }
 
+/* Headers - San Francisco with Apple-like styling */
 h1, h2, h3, h4, h5, h6 {
-    font-family: 'Libre Baskerville', serif;
-    color: #000; /* darker than the body text */
-    margin-top: 1em; /* space above headers */
+    font-family: 'San Francisco', -apple-system, BlinkMacSystemFont, sans-serif;
+    color: #000;
+    font-weight: 600;
+    margin-top: 1.5em;
+    margin-bottom: 0.5em;
+    letter-spacing: -0.02em; /* Apple-style tight letter spacing */
 }
 
 h1 {
-    font-size: 2em; /* make h1 twice the size of the body text */
+    font-size: 2.2em;
+    font-weight: 700;
+    margin-top: 0;
+    padding-bottom: 0.3em;
+    border-bottom: 2px solid #e5e5e7;
 }
 
 h2 {
-    font-size: 1.5em;
+    font-size: 1.6em;
+    font-weight: 600;
+    margin-top: 1.8em;
 }
 
-/* Add some space between paragraphs */
+h3 {
+    font-size: 1.3em;
+    font-weight: 600;
+}
+
+h4 {
+    font-size: 1.1em;
+    font-weight: 600;
+}
+
+h5, h6 {
+    font-size: 1em;
+    font-weight: 600;
+}
+
+/* Paragraphs */
 p {
     margin-bottom: 1em;
+    text-align: justify;
 }
 
-/* Style for blockquotes, often used in academic papers */
+/* Links */
+a {
+    color: #0066cc; /* Apple blue */
+    text-decoration: none;
+}
+
+a:hover {
+    text-decoration: underline;
+}
+
+/* Code and Monospace - Monaco font */
+code, kbd, pre, samp, tt {
+    font-family: 'Monaco', 'Courier New', monospace;
+    font-size: 0.9em;
+    background-color: #f5f5f7;
+    padding: 2px 6px;
+    border-radius: 4px;
+}
+
+/* Code blocks */
+pre {
+    background-color: #f5f5f7;
+    padding: 16px;
+    border-radius: 8px;
+    overflow-x: auto;
+    border-left: 3px solid #0066cc;
+    margin: 1em 0;
+}
+
+pre code {
+    background-color: transparent;
+    padding: 0;
+    border-radius: 0;
+    font-size: 0.85em;
+    line-height: 1.5;
+}
+
+/* Blockquotes - Apple-style */
 blockquote {
     font-style: italic;
-    margin: 1em 0;
-    padding: 1em;
-    background-color: #f9f9f9; /* a light grey background */
+    margin: 1.5em 0;
+    padding: 1em 1.5em;
+    background-color: #f5f5f7;
+    border-left: 4px solid #86868b; /* Apple gray */
+    color: #424245;
+    border-radius: 4px;
 }
 
-/* You might want to style tables, figures, etc. too */
+/* Lists */
+ul, ol {
+    margin: 1em 0;
+    padding-left: 2em;
+}
+
+li {
+    margin-bottom: 0.5em;
+}
+
+/* Tables - Apple-style */
 table {
     border-collapse: collapse;
     width: 100%;
+    margin: 1.5em 0;
+    font-size: 0.95em;
 }
 
 table, th, td {
-    border: 1px solid #ddd;
-    text-align: left;
-    padding: 8px;
+    border: 1px solid #d2d2d7;
 }
 
 th {
-    background-color: #f2f2f2;
-    color: black;
+    background-color: #f5f5f7;
+    color: #1d1d1f;
+    font-weight: 600;
+    text-align: left;
+    padding: 12px;
+}
+
+td {
+    padding: 10px 12px;
+}
+
+/* Alternating row colors */
+tr:nth-child(even) {
+    background-color: #fafafa;
+}
+
+/* Horizontal rules */
+hr {
+    border: none;
+    border-top: 1px solid #d2d2d7;
+    margin: 2em 0;
+}
+
+/* Strong and emphasis */
+strong, b {
+    font-weight: 600;
+    color: #000;
+}
+
+em, i {
+    font-style: italic;
+}
+
+/* Images */
+img {
+    max-width: 100%;
+    height: auto;
+    display: block;
+    margin: 1.5em auto;
+    border-radius: 8px;
+}
+
+/* Figure captions */
+figcaption {
+    font-size: 0.9em;
+    color: #86868b;
+    text-align: center;
+    margin-top: 0.5em;
+    font-style: italic;
+}
+
+/* Page breaks for better PDF pagination */
+@page {
+    margin: 2cm;
+    size: A4;
+}
+
+h1, h2, h3 {
+    page-break-after: avoid;
+}
+
+pre, blockquote, table {
+    page-break-inside: avoid;
+}
+
+/* Small text and footnotes */
+small {
+    font-size: 0.85em;
+    color: #86868b;
+}
+
+/* Definition lists */
+dl {
+    margin: 1em 0;
+}
+
+dt {
+    font-weight: 600;
+    margin-top: 1em;
+}
+
+dd {
+    margin-left: 2em;
+    margin-bottom: 0.5em;
 }

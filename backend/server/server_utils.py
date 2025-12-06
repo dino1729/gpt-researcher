@@ -5,7 +5,7 @@ import re
 import time
 import shutil
 import traceback
-from typing import Awaitable, Dict, List, Any
+from typing import Awaitable, Dict, List, Any, Optional
 from fastapi.responses import JSONResponse, FileResponse
 from gpt_researcher.document.document import DocumentLoader
 from gpt_researcher import GPTResearcher
@@ -18,60 +18,114 @@ import logging
 logger = logging.getLogger(__name__)
 
 
-def apply_llm_provider_mode(llm_provider_mode: str) -> None:
+def apply_llm_provider_mode(
+    llm_provider_mode: str,
+    ollama_base_url: Optional[str] = None,
+    ollama_model: Optional[str] = None,
+    litellm_base_url: Optional[str] = None,
+    litellm_api_key: Optional[str] = None,
+    litellm_model: Optional[str] = None,
+) -> None:
     """
     Apply environment variable overrides based on the selected LLM provider mode.
     
     Args:
         llm_provider_mode: Either 'ollama' for local models or 'litellm' for online models :-)
+        ollama_base_url: Optional override for the Ollama server URL.
+        ollama_model: Optional override for the Ollama model to use for all roles.
     """
+    def _with_provider_prefix(provider: str, value: Optional[str]) -> Optional[str]:
+        """
+        Ensure the value is prefixed with '<provider>:' even if it already contains
+        a colon for model variants (e.g., 'qwen3:8b'). We only skip when it is
+        already explicitly prefixed with '<provider>:'.
+        """
+        if not value:
+            return None
+        if value.startswith(f"{provider}:"):
+            return value
+        return f"{provider}:{value}"
+
     if llm_provider_mode == "ollama":
-        # Override with Ollama environment variables
-        if os.getenv("OLLAMA_BASE_URL"):
-            os.environ["OPENAI_BASE_URL"] = os.getenv("OLLAMA_BASE_URL")
-            logger.info(f"Using Ollama base URL: {os.getenv('OLLAMA_BASE_URL')}")
+        # Override with Ollama environment variables or request-level overrides
+        resolved_base_url = ollama_base_url or os.getenv("OLLAMA_BASE_URL")
+        if resolved_base_url:
+            normalized_base_url = resolved_base_url.rstrip("/")
+            os.environ["OLLAMA_BASE_URL"] = normalized_base_url
+            os.environ["OPENAI_BASE_URL"] = normalized_base_url
+            logger.info(f"Using Ollama base URL: {normalized_base_url}")
         
-        if os.getenv("OLLAMA_FAST_LLM"):
-            os.environ["FAST_LLM"] = os.getenv("OLLAMA_FAST_LLM")
-            logger.info(f"Using Ollama fast LLM: {os.getenv('OLLAMA_FAST_LLM')}")
-        
-        if os.getenv("OLLAMA_SMART_LLM"):
-            os.environ["SMART_LLM"] = os.getenv("OLLAMA_SMART_LLM")
-            logger.info(f"Using Ollama smart LLM: {os.getenv('OLLAMA_SMART_LLM')}")
-        
-        if os.getenv("OLLAMA_STRATEGIC_LLM"):
-            os.environ["STRATEGIC_LLM"] = os.getenv("OLLAMA_STRATEGIC_LLM")
-            logger.info(f"Using Ollama strategic LLM: {os.getenv('OLLAMA_STRATEGIC_LLM')}")
+        # If a specific model was chosen, use it for all roles, otherwise fall back to env vars
+        if ollama_model:
+            prefixed_model = _with_provider_prefix("ollama", ollama_model)
+            os.environ["FAST_LLM"] = prefixed_model
+            os.environ["SMART_LLM"] = prefixed_model
+            os.environ["STRATEGIC_LLM"] = prefixed_model
+            logger.info(f"Using Ollama model for all roles: {prefixed_model}")
+        else:
+            if os.getenv("OLLAMA_FAST_LLM"):
+                prefixed_fast = _with_provider_prefix("ollama", os.getenv("OLLAMA_FAST_LLM"))
+                os.environ["FAST_LLM"] = prefixed_fast
+                logger.info(f"Using Ollama fast LLM: {prefixed_fast}")
+            
+            if os.getenv("OLLAMA_SMART_LLM"):
+                prefixed_smart = _with_provider_prefix("ollama", os.getenv("OLLAMA_SMART_LLM"))
+                os.environ["SMART_LLM"] = prefixed_smart
+                logger.info(f"Using Ollama smart LLM: {prefixed_smart}")
+            
+            if os.getenv("OLLAMA_STRATEGIC_LLM"):
+                prefixed_strategic = _with_provider_prefix("ollama", os.getenv("OLLAMA_STRATEGIC_LLM"))
+                os.environ["STRATEGIC_LLM"] = prefixed_strategic
+                logger.info(f"Using Ollama strategic LLM: {prefixed_strategic}")
         
         if os.getenv("OLLAMA_EMBEDDING"):
-            os.environ["EMBEDDING"] = os.getenv("OLLAMA_EMBEDDING")
-            logger.info(f"Using Ollama embedding: {os.getenv('OLLAMA_EMBEDDING')}")
+            prefixed_embedding = _with_provider_prefix("ollama", os.getenv("OLLAMA_EMBEDDING"))
+            os.environ["EMBEDDING"] = prefixed_embedding
+            logger.info(f"Using Ollama embedding: {prefixed_embedding}")
     
     elif llm_provider_mode == "litellm":
-        # Override with LiteLLM environment variables
-        if os.getenv("LITELLM_BASE_URL"):
-            os.environ["OPENAI_BASE_URL"] = os.getenv("LITELLM_BASE_URL")
-            logger.info(f"Using LiteLLM base URL: {os.getenv('LITELLM_BASE_URL')}")
+        # Use LiteLLM proxy as an OpenAI-compatible endpoint
+        resolved_base_url = litellm_base_url or os.getenv("LITELLM_BASE_URL")
+        if resolved_base_url:
+            normalized_base_url = resolved_base_url.rstrip("/")
+            os.environ["OPENAI_BASE_URL"] = normalized_base_url
+            os.environ["LITELLM_BASE_URL"] = normalized_base_url
+            logger.info(f"Using LiteLLM base URL: {normalized_base_url}")
         
-        if os.getenv("LITELLM_API_KEY"):
-            os.environ["OPENAI_API_KEY"] = os.getenv("LITELLM_API_KEY")
+        resolved_api_key = litellm_api_key or os.getenv("LITELLM_API_KEY")
+        if resolved_api_key:
+            os.environ["OPENAI_API_KEY"] = resolved_api_key
+            os.environ["LITELLM_API_KEY"] = resolved_api_key
             logger.info("Using LiteLLM API key")
-        
-        if os.getenv("LITELLM_FAST_LLM"):
-            os.environ["FAST_LLM"] = os.getenv("LITELLM_FAST_LLM")
-            logger.info(f"Using LiteLLM fast LLM: {os.getenv('LITELLM_FAST_LLM')}")
-        
-        if os.getenv("LITELLM_SMART_LLM"):
-            os.environ["SMART_LLM"] = os.getenv("LITELLM_SMART_LLM")
-            logger.info(f"Using LiteLLM smart LLM: {os.getenv('LITELLM_SMART_LLM')}")
-        
-        if os.getenv("LITELLM_STRATEGIC_LLM"):
-            os.environ["STRATEGIC_LLM"] = os.getenv("LITELLM_STRATEGIC_LLM")
-            logger.info(f"Using LiteLLM strategic LLM: {os.getenv('LITELLM_STRATEGIC_LLM')}")
-        
-        if os.getenv("LITELLM_EMBEDDING"):
+
+        if litellm_model:
+            # Treat LiteLLM proxy as OpenAI-compatible; keep provider 'openai'
+            prefixed_model = _with_provider_prefix("openai", litellm_model)
+            os.environ["FAST_LLM"] = prefixed_model
+            os.environ["SMART_LLM"] = prefixed_model
+            os.environ["STRATEGIC_LLM"] = prefixed_model
+            logger.info(f"Using LiteLLM model for all roles: {prefixed_model}")
+        elif os.getenv("LITELLM_FAST_LLM") or os.getenv("LITELLM_SMART_LLM") or os.getenv("LITELLM_STRATEGIC_LLM"):
+            if os.getenv("LITELLM_FAST_LLM"):
+                os.environ["FAST_LLM"] = os.getenv("LITELLM_FAST_LLM")
+                logger.info(f"Using LiteLLM fast LLM: {os.getenv('LITELLM_FAST_LLM')}")
+            if os.getenv("LITELLM_SMART_LLM"):
+                os.environ["SMART_LLM"] = os.getenv("LITELLM_SMART_LLM")
+                logger.info(f"Using LiteLLM smart LLM: {os.getenv('LITELLM_SMART_LLM')}")
+            if os.getenv("LITELLM_STRATEGIC_LLM"):
+                os.environ["STRATEGIC_LLM"] = os.getenv("LITELLM_STRATEGIC_LLM")
+                logger.info(f"Using LiteLLM strategic LLM: {os.getenv('LITELLM_STRATEGIC_LLM')}")
+
+        # Embedding selection: prefer explicit, else derive a sane default
+        if litellm_model and "embedding" in litellm_model:
+            os.environ["EMBEDDING"] = _with_provider_prefix("openai", litellm_model)
+            logger.info(f"Using LiteLLM embedding (from model): {os.environ.get('EMBEDDING')}")
+        elif os.getenv("LITELLM_EMBEDDING"):
             os.environ["EMBEDDING"] = os.getenv("LITELLM_EMBEDDING")
             logger.info(f"Using LiteLLM embedding: {os.getenv('LITELLM_EMBEDDING')}")
+        elif not os.getenv("EMBEDDING"):
+            os.environ["EMBEDDING"] = "openai:text-embedding-3-large"
+            logger.info(f"Defaulting embedding to: {os.environ.get('EMBEDDING')}")
     
     else:
         logger.warning(f"Unknown LLM provider mode: {llm_provider_mode}. Using default configuration.")
@@ -191,6 +245,11 @@ async def handle_start_command(websocket, data: str, manager):
         mcp_strategy,
         mcp_configs,
         llm_provider_mode,
+        ollama_base_url,
+        ollama_model,
+        litellm_base_url,
+        litellm_api_key,
+        litellm_model,
     ) = extract_command_data(json_data)
 
     if not task or not report_type:
@@ -198,7 +257,14 @@ async def handle_start_command(websocket, data: str, manager):
         return
 
     # Apply LLM provider mode environment overrides :-)
-    apply_llm_provider_mode(llm_provider_mode)
+    apply_llm_provider_mode(
+        llm_provider_mode,
+        ollama_base_url,
+        ollama_model,
+        litellm_base_url,
+        litellm_api_key,
+        litellm_model,
+    )
 
     # Create logs handler with websocket and task
     logs_handler = CustomLogsHandler(websocket, task)
@@ -323,14 +389,14 @@ async def send_file_paths(websocket, file_paths: Dict[str, str]):
 
 
 def get_config_dict(
-    langchain_api_key: str, openai_api_key: str, tavily_api_key: str,
+    langchain_api_key: str, openai_api_key: str, firecrawl_api_key: str,
     google_api_key: str, google_cx_key: str, bing_api_key: str,
     searchapi_api_key: str, serpapi_api_key: str, serper_api_key: str, searx_url: str
 ) -> Dict[str, str]:
     return {
         "LANGCHAIN_API_KEY": langchain_api_key or os.getenv("LANGCHAIN_API_KEY", ""),
         "OPENAI_API_KEY": openai_api_key or os.getenv("OPENAI_API_KEY", ""),
-        "TAVILY_API_KEY": tavily_api_key or os.getenv("TAVILY_API_KEY", ""),
+        "FIRECRAWL_API_KEY": firecrawl_api_key or os.getenv("FIRECRAWL_API_KEY", ""),
         "GOOGLE_API_KEY": google_api_key or os.getenv("GOOGLE_API_KEY", ""),
         "GOOGLE_CX_KEY": google_cx_key or os.getenv("GOOGLE_CX_KEY", ""),
         "BING_API_KEY": bing_api_key or os.getenv("BING_API_KEY", ""),
@@ -467,4 +533,9 @@ def extract_command_data(json_data: Dict) -> tuple:
         json_data.get("mcp_strategy", "fast"),
         json_data.get("mcp_configs", []),
         json_data.get("llm_provider_mode", "litellm"),
+        json_data.get("ollama_base_url"),
+        json_data.get("ollama_model"),
+        json_data.get("litellm_base_url"),
+        json_data.get("litellm_api_key"),
+        json_data.get("litellm_model"),
     )

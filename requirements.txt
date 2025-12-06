@@ -23,8 +23,6 @@ ollama>=0.4.8
 litellm>=1.71.0
 
 # Search & Research
-tavily-python>=0.7.12
-duckduckgo-search>=4.1.1
 arxiv>=2.0.0
 
 # Document Processing

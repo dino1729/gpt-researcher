@@ -27,6 +27,67 @@ _SUPPORTED_PROVIDERS = {
 }
 
 
+class NVIDIAOpenAIEmbeddings:
+    """Custom wrapper for NVIDIA asymmetric embedding models that require input_type parameter.
+
+    NVIDIA's asymmetric models like llama-3.2-nv-embedqa-1b-v2 require an input_type parameter:
+    - "passage" for documents being indexed
+    - "query" for search queries
+
+    This wrapper ensures the correct input_type is passed via extra_body for each operation.
+    """
+
+    def __init__(self, **kwargs):
+        from langchain_openai import OpenAIEmbeddings
+        self._embeddings = OpenAIEmbeddings(**kwargs)
+
+    def embed_documents(self, texts: list[str], chunk_size: int | None = None) -> list[list[float]]:
+        """Embed documents with input_type='passage' in extra_body."""
+        # Monkey-patch the client to inject extra_body
+        original_create = self._embeddings.client.create
+
+        def create_with_input_type(**kwargs):
+            # Add input_type to extra_body
+            if 'extra_body' not in kwargs:
+                kwargs['extra_body'] = {}
+            kwargs['extra_body']['input_type'] = 'passage'
+            return original_create(**kwargs)
+
+        self._embeddings.client.create = create_with_input_type
+        try:
+            result = self._embeddings.embed_documents(texts, chunk_size)
+        finally:
+            # Restore original method
+            self._embeddings.client.create = original_create
+
+        return result
+
+    def embed_query(self, text: str) -> list[float]:
+        """Embed a query with input_type='query' in extra_body."""
+        # Monkey-patch the client to inject extra_body
+        original_create = self._embeddings.client.create
+
+        def create_with_input_type(**kwargs):
+            # Add input_type to extra_body
+            if 'extra_body' not in kwargs:
+                kwargs['extra_body'] = {}
+            kwargs['extra_body']['input_type'] = 'query'
+            return original_create(**kwargs)
+
+        self._embeddings.client.create = create_with_input_type
+        try:
+            result = self._embeddings.embed_query(text)
+        finally:
+            # Restore original method
+            self._embeddings.client.create = original_create
+
+        return result
+
+    def __getattr__(self, name):
+        """Delegate all other attributes to the underlying embeddings object."""
+        return getattr(self._embeddings, name)
+
+
 class Memory:
     def __init__(self, embedding_provider: str, model: str, **embedding_kwargs: Any):
         _embeddings = None
@@ -44,19 +105,24 @@ class Memory:
                     **embedding_kwargs,
                 )  # quick fix for lmstudio
             case "openai":
-                from langchain_openai import OpenAIEmbeddings
-
                 # Support custom OpenAI-compatible APIs via OPENAI_BASE_URL
                 if "openai_api_base" not in embedding_kwargs and os.environ.get("OPENAI_BASE_URL"):
                     embedding_kwargs["openai_api_base"] = os.environ["OPENAI_BASE_URL"]
 
-                # For NVIDIA embedding models, add input_type parameter via extra_body
-                # NVIDIA's asymmetric models require this parameter
+                # For NVIDIA embedding models, use custom wrapper that handles input_type
                 if "nv-embedqa" in model or "llama-3.2-nv-embedqa" in model:
-                    # Use extra_body to pass additional parameters to the API
-                    embedding_kwargs["extra_body"] = {"input_type": "query"}
+                    # Initialize model_kwargs if not present
+                    if "model_kwargs" not in embedding_kwargs:
+                        embedding_kwargs["model_kwargs"] = {}
 
-                _embeddings = OpenAIEmbeddings(model=model, **embedding_kwargs)
+                    # Set check_embedding_ctx_length to False to avoid issues
+                    embedding_kwargs["check_embedding_ctx_length"] = False
+
+                    # Use custom wrapper that sets input_type appropriately
+                    _embeddings = NVIDIAOpenAIEmbeddings(model=model, **embedding_kwargs)
+                else:
+                    from langchain_openai import OpenAIEmbeddings
+                    _embeddings = OpenAIEmbeddings(model=model, **embedding_kwargs)
             case "azure_openai":
                 from langchain_openai import AzureOpenAIEmbeddings
 

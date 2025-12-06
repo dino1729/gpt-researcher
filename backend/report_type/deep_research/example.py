@@ -2,17 +2,31 @@ from typing import List, Dict, Any, Optional, Set
 from fastapi import WebSocket
 import asyncio
 import logging
+import os
 from gpt_researcher import GPTResearcher
 from gpt_researcher.llm_provider.generic.base import ReasoningEfforts
 from gpt_researcher.utils.llm import create_chat_completion
 from gpt_researcher.utils.enum import ReportType, ReportSource, Tone
+from gpt_researcher.config.config import Config
 
 logger = logging.getLogger(__name__)
 
-# Constants for models
-GPT4_MODEL = "gpt-4o"  # For standard tasks
-O3_MINI_MODEL = "o3-mini"  # For reasoning tasks
-LLM_PROVIDER = "openai"
+# Load models from environment configuration
+def _get_models_from_config():
+    """Get model configuration from environment variables"""
+    cfg = Config()
+    return {
+        'smart_provider': cfg.smart_llm_provider,
+        'smart_model': cfg.smart_llm_model,
+        'strategic_provider': cfg.strategic_llm_provider,
+        'strategic_model': cfg.strategic_llm_model
+    }
+
+_config = _get_models_from_config()
+SMART_LLM_PROVIDER = _config['smart_provider']
+SMART_LLM_MODEL = _config['smart_model']
+STRATEGIC_LLM_PROVIDER = _config['strategic_provider']
+STRATEGIC_LLM_MODEL = _config['strategic_model']
 
 class ResearchProgress:
     def __init__(self, total_depth: int, total_breadth: int):
@@ -56,8 +70,8 @@ class DeepResearch:
 
         response = await create_chat_completion(
             messages=messages,
-            llm_provider=LLM_PROVIDER,
-            model=O3_MINI_MODEL,  # Using reasoning model for better question generation
+            llm_provider=STRATEGIC_LLM_PROVIDER,
+            model=STRATEGIC_LLM_MODEL,  # Using strategic/reasoning model for better question generation
             temperature=0.7,
             max_tokens=500,
             reasoning_effort=ReasoningEfforts.High.value
@@ -78,8 +92,8 @@ class DeepResearch:
 
         response = await create_chat_completion(
             messages=messages,
-            llm_provider=LLM_PROVIDER,
-            model=GPT4_MODEL,  # Using GPT-4 for general task
+            llm_provider=SMART_LLM_PROVIDER,
+            model=SMART_LLM_MODEL,  # Using smart LLM for general task
             temperature=0.7,
             max_tokens=1000
         )
@@ -112,8 +126,8 @@ class DeepResearch:
 
         response = await create_chat_completion(
             messages=messages,
-            llm_provider=LLM_PROVIDER,
-            model=O3_MINI_MODEL,  # Using reasoning model for analysis
+            llm_provider=STRATEGIC_LLM_PROVIDER,
+            model=STRATEGIC_LLM_MODEL,  # Using strategic/reasoning model for analysis
             temperature=0.7,
             max_tokens=1000,
             reasoning_effort=ReasoningEfforts.High.value

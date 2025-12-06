@@ -1,4 +1,4 @@
-# Tavily API Retriever
+# Google Search API Retriever
 
 # libraries
 import os

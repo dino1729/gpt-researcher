@@ -29,10 +29,6 @@ def get_retriever(retriever: str):
             from gpt_researcher.retrievers import SerperSearch
 
             return SerperSearch
-        case "duckduckgo":
-            from gpt_researcher.retrievers import Duckduckgo
-
-            return Duckduckgo
         case "bing":
             from gpt_researcher.retrievers import BingSearch
 
@@ -41,10 +37,6 @@ def get_retriever(retriever: str):
             from gpt_researcher.retrievers import ArxivSearch
 
             return ArxivSearch
-        case "tavily":
-            from gpt_researcher.retrievers import TavilySearch
-
-            return TavilySearch
         case "exa":
             from gpt_researcher.retrievers import ExaSearch
 
@@ -115,6 +107,6 @@ def get_retrievers(headers: dict[str, str], cfg):
 
 
 def get_default_retriever():
-    from gpt_researcher.retrievers import TavilySearch
+    from gpt_researcher.retrievers import FirecrawlSearch
 
-    return TavilySearch
+    return FirecrawlSearch

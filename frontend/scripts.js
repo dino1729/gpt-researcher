@@ -21,6 +21,16 @@ const GPTResearcher = (() => {
   let reconnectAttempts = 0;
   let maxReconnectAttempts = 5;
   let reconnectInterval = 2000; // Start with 2 seconds
+  const DEFAULT_OLLAMA_BASE_URL = 'http://host.docker.internal:11434';
+  const DEFAULT_LITELLM_BASE_URL = 'http://host.docker.internal:4000/v1';
+  const DEFAULT_FIRECRAWL_SERVER_URL = 'http://host.docker.internal:3002';
+  let ollamaModels = [];
+  let liteLLMSettings = {
+    baseUrl: '',
+    apiKey: '',
+    remember: true,
+    models: []
+  };
 
   const init = () => {
     // Check if cookies are enabled
@@ -57,11 +67,17 @@ const GPTResearcher = (() => {
     // Initialize history panel functionality
     initHistoryPanel();
 
+    // Initialize settings panel functionality
+    initSettingsPanel();
+
     // Initialize WebSocket monitoring panel
     initWebSocketPanel();
 
     // Initialize MCP functionality
     initMCPSection();
+
+    // Initialize LLM provider specific UI
+    initLLMProviderMode();
 
     // The download bar is now fixed in place with CSS
     // No need to set display property here
@@ -77,6 +93,276 @@ const GPTResearcher = (() => {
       loadingOverlay.classList.add('loading-hidden');
     }
   }
+
+  const setOllamaStatus = (state, message) => {
+    const statusEl = document.getElementById('ollamaModelsStatus');
+    if (!statusEl) return;
+    statusEl.textContent = message || '';
+    statusEl.className = 'text-muted';
+
+    if (state === 'error') {
+      statusEl.classList.add('text-danger');
+    } else if (state === 'success') {
+      statusEl.classList.add('text-success');
+    }
+  };
+
+  const populateOllamaModels = (models) => {
+    const modelsSelect = document.getElementById('ollama_model');
+    if (!modelsSelect) return;
+
+    modelsSelect.innerHTML = '';
+    const savedModel = localStorage.getItem('ollama_model');
+
+    if (!models || models.length === 0) {
+      const option = document.createElement('option');
+      option.value = '';
+      option.textContent = 'No models found';
+      modelsSelect.appendChild(option);
+      return;
+    }
+
+    models.forEach((model) => {
+      const option = document.createElement('option');
+      option.value = model;
+      option.textContent = model;
+      modelsSelect.appendChild(option);
+    });
+
+    if (savedModel && models.includes(savedModel)) {
+      modelsSelect.value = savedModel;
+    } else {
+      modelsSelect.selectedIndex = 0;
+      localStorage.setItem('ollama_model', modelsSelect.value);
+    }
+  };
+
+  const fetchOllamaModels = async () => {
+    const baseUrlInput = document.getElementById('ollama_base_url');
+    const modelsSelect = document.getElementById('ollama_model');
+    const llmSelect = document.getElementById('llm_provider_mode');
+
+    if (!llmSelect || llmSelect.value !== 'ollama') {
+      return;
+    }
+
+    if (!baseUrlInput || !modelsSelect) {
+      console.warn('Ollama inputs missing');
+      return;
+    }
+
+    const baseUrl = (baseUrlInput.value || DEFAULT_OLLAMA_BASE_URL).trim();
+    baseUrlInput.value = baseUrl;
+    localStorage.setItem('ollama_base_url', baseUrl);
+
+    setOllamaStatus('loading', `Querying ${baseUrl} for models...`);
+    try {
+      modelsSelect.disabled = true;
+      modelsSelect.innerHTML = '<option value="">Loading models...</option>';
+
+      const response = await fetch(`/api/ollama/models?base_url=${encodeURIComponent(baseUrl)}`);
+      if (!response.ok) {
+        throw new Error(`Request failed (${response.status})`);
+      }
+
+      const payload = await response.json();
+      const models = Array.isArray(payload.models) ? payload.models.filter(Boolean) : [];
+      ollamaModels = models;
+
+      populateOllamaModels(models);
+      const resolvedBase = payload.base_url || baseUrl;
+      setOllamaStatus('success', `${models.length} model${models.length === 1 ? '' : 's'} available from ${resolvedBase}`);
+    } catch (error) {
+      console.error('Failed to fetch Ollama models', error);
+      populateOllamaModels([]);
+      setOllamaStatus('error', `Could not reach Ollama at ${baseUrl}. ${error.message}`);
+      showToast('Unable to fetch Ollama models. Check server URL.');
+    } finally {
+      modelsSelect.disabled = false;
+    }
+  };
+
+  const initLLMProviderMode = () => {
+    const llmSelect = document.getElementById('llm_provider_mode');
+    const ollamaSettings = document.getElementById('ollamaSettings');
+    const litellmSettings = document.getElementById('litellmSettings');
+    const baseUrlInput = document.getElementById('ollama_base_url');
+    const modelsSelect = document.getElementById('ollama_model');
+    const refreshBtn = document.getElementById('refreshOllamaModels');
+    const liteBaseInput = document.getElementById('litellm_base_url');
+    const liteKeyInput = document.getElementById('litellm_api_key');
+    const liteRememberInput = document.getElementById('litellmSaveSession');
+    const liteModelSelect = document.getElementById('litellm_model');
+    const liteRefreshBtn = document.getElementById('refreshLiteLLMModels');
+    const firecrawlInput = document.getElementById('firecrawl_server_url');
+
+    if (baseUrlInput) {
+      const savedBase = localStorage.getItem('ollama_base_url');
+      baseUrlInput.value = baseUrlInput.value || savedBase || DEFAULT_OLLAMA_BASE_URL;
+    }
+
+    if (liteBaseInput && liteKeyInput && liteRememberInput) {
+      const savedRemember = localStorage.getItem('litellm_remember');
+      liteLLMSettings.remember = savedRemember === null ? true : savedRemember === 'true';
+      liteRememberInput.checked = liteLLMSettings.remember;
+
+      if (liteLLMSettings.remember) {
+        const savedLiteBase = localStorage.getItem('litellm_base_url');
+        const savedLiteKey = localStorage.getItem('litellm_api_key');
+        liteBaseInput.value = liteBaseInput.value || savedLiteBase || DEFAULT_LITELLM_BASE_URL;
+        liteKeyInput.value = liteKeyInput.value || savedLiteKey || '';
+      } else {
+        liteBaseInput.value = liteBaseInput.value || DEFAULT_LITELLM_BASE_URL;
+        liteKeyInput.value = '';
+      }
+
+      const persistLiteLLM = () => {
+        if (!liteRememberInput.checked) return;
+        localStorage.setItem('litellm_base_url', liteBaseInput.value.trim());
+        localStorage.setItem('litellm_api_key', liteKeyInput.value);
+      };
+
+      liteBaseInput.addEventListener('change', () => {
+        liteLLMSettings.baseUrl = liteBaseInput.value.trim();
+        persistLiteLLM();
+      });
+      liteKeyInput.addEventListener('change', () => {
+        liteLLMSettings.apiKey = liteKeyInput.value;
+        persistLiteLLM();
+      });
+      liteRememberInput.addEventListener('change', () => {
+        liteLLMSettings.remember = liteRememberInput.checked;
+        localStorage.setItem('litellm_remember', liteRememberInput.checked.toString());
+        if (!liteRememberInput.checked) {
+          localStorage.removeItem('litellm_base_url');
+          localStorage.removeItem('litellm_api_key');
+        } else {
+          persistLiteLLM();
+        }
+      });
+
+      if (liteModelSelect) {
+        const savedModel = localStorage.getItem('litellm_model');
+        if (savedModel) liteModelSelect.value = savedModel;
+        liteModelSelect.addEventListener('change', () => {
+          if (liteRememberInput.checked && liteModelSelect.value) {
+            localStorage.setItem('litellm_model', liteModelSelect.value);
+          }
+        });
+      }
+    }
+
+    // Firecrawl server (self-hosted) persistence
+    if (firecrawlInput) {
+      const savedFirecrawl = localStorage.getItem('firecrawl_server_url');
+      firecrawlInput.value = firecrawlInput.value || savedFirecrawl || DEFAULT_FIRECRAWL_SERVER_URL;
+      firecrawlInput.addEventListener('change', () => {
+        localStorage.setItem('firecrawl_server_url', firecrawlInput.value.trim());
+      });
+    }
+
+    const populateLiteLLMModels = (models) => {
+      const select = document.getElementById('litellm_model');
+      const status = document.getElementById('litellmModelsStatus');
+      if (!select) return;
+      select.innerHTML = '';
+      liteLLMSettings.models = models || [];
+      if (!models || models.length === 0) {
+        select.disabled = true;
+        const option = document.createElement('option');
+        option.value = '';
+        option.textContent = 'No models found';
+        select.appendChild(option);
+        if (status) status.textContent = 'No models returned';
+        return;
+      }
+      models.forEach((m) => {
+        const option = document.createElement('option');
+        option.value = m;
+        option.textContent = m;
+        select.appendChild(option);
+      });
+      select.disabled = false;
+      const savedModel = localStorage.getItem('litellm_model');
+      if (savedModel && models.includes(savedModel)) {
+        select.value = savedModel;
+      } else {
+        select.selectedIndex = 0;
+        if (liteRememberInput?.checked) {
+          localStorage.setItem('litellm_model', select.value);
+        }
+      }
+      if (status) status.textContent = `${models.length} models available`;
+    };
+
+    const fetchLiteLLMModels = async () => {
+      const status = document.getElementById('litellmModelsStatus');
+      const select = document.getElementById('litellm_model');
+      if (!liteBaseInput || !select) return;
+      const baseUrl = (liteBaseInput.value || DEFAULT_LITELLM_BASE_URL).trim();
+      const apiKey = liteKeyInput?.value || '';
+      if (status) status.textContent = `Querying ${baseUrl}...`;
+      select.disabled = true;
+      select.innerHTML = '<option value="">Loading models...</option>';
+      try {
+        const resp = await fetch('/api/litellm/models', {
+          method: 'POST',
+          headers: { 'Content-Type': 'application/json' },
+          body: JSON.stringify({ base_url: baseUrl, api_key: apiKey }),
+        });
+        if (!resp.ok) throw new Error(`Request failed (${resp.status})`);
+        const payload = await resp.json();
+        const models = Array.isArray(payload.models) ? payload.models.filter(Boolean) : [];
+        populateLiteLLMModels(models);
+      } catch (err) {
+        console.error('Failed to fetch LiteLLM models', err);
+        populateLiteLLMModels([]);
+        if (status) status.textContent = `Error fetching models: ${err.message}`;
+      } finally {
+        select.disabled = false;
+      }
+    };
+
+    const handleModeChange = () => {
+      if (!llmSelect) return;
+      const isOllama = llmSelect.value === 'ollama';
+      const isLiteLLM = llmSelect.value === 'litellm';
+      if (ollamaSettings) {
+        ollamaSettings.style.display = isOllama ? 'block' : 'none';
+      }
+      if (litellmSettings) {
+        litellmSettings.style.display = isLiteLLM ? 'block' : 'none';
+      }
+
+      if (isOllama) {
+        fetchOllamaModels();
+      } else if (isLiteLLM && liteBaseInput) {
+        fetchLiteLLMModels();
+      }
+    };
+
+    if (llmSelect) {
+      llmSelect.addEventListener('change', handleModeChange);
+      handleModeChange();
+    }
+
+    if (refreshBtn) {
+      refreshBtn.addEventListener('click', fetchOllamaModels);
+    }
+
+    if (liteRefreshBtn) {
+      liteRefreshBtn.addEventListener('click', fetchLiteLLMModels);
+    }
+
+    if (modelsSelect) {
+      modelsSelect.addEventListener('change', () => {
+        const selectedModel = modelsSelect.value;
+        if (selectedModel) {
+          localStorage.setItem('ollama_model', selectedModel);
+        }
+      });
+    }
+  };
 
   // Check if cookies are enabled
   const checkCookiesEnabled = () => {
@@ -103,7 +389,7 @@ const GPTResearcher = (() => {
     }
   }
 
-  // Initialize conversation history panel functionality
+  // Initialize conversation history panel functionality with toggle behavior :-)
   const initHistoryPanel = () => {
     // Load history from cookie
     loadConversationHistory();
@@ -115,8 +401,8 @@ const GPTResearcher = (() => {
 
     if (historyPanelOpenBtn) {
       historyPanelOpenBtn.addEventListener('click', () => {
-        loadConversationHistory(); // Reload history when opening panel
-        historyPanel.classList.add('open');
+        loadConversationHistory(); // Reload history when toggling panel
+        historyPanel.classList.toggle('open'); // Toggle instead of just add
       });
     }
 
@@ -211,7 +497,46 @@ const GPTResearcher = (() => {
     renderHistoryEntries();
   }
 
-  // Initialize WebSocket monitoring panel
+  // Initialize settings panel functionality with toggle behavior :-)
+  const initSettingsPanel = () => {
+    const settingsPanel = document.getElementById('settingsPanel');
+    const settingsPanelOpenBtn = document.getElementById('settingsPanelOpenBtn');
+    const settingsPanelToggle = document.getElementById('settingsPanelToggle');
+
+    if (!settingsPanel || !settingsPanelOpenBtn || !settingsPanelToggle) {
+      console.error("Settings panel elements not found");
+      return;
+    }
+
+    // Ensure it starts hidden
+    settingsPanel.classList.remove('open');
+
+    // Toggle panel when clicking the main button
+    settingsPanelOpenBtn.addEventListener('click', (e) => {
+      e.preventDefault();
+      e.stopPropagation();
+      settingsPanel.classList.toggle('open');
+    });
+
+    // Close button inside panel
+    settingsPanelToggle.addEventListener('click', (e) => {
+      e.preventDefault();
+      e.stopPropagation();
+      settingsPanel.classList.remove('open');
+    });
+
+    // Close panel when clicking outside
+    document.addEventListener('click', (e) => {
+      if (settingsPanel.classList.contains('open') &&
+        !settingsPanel.contains(e.target) &&
+        e.target !== settingsPanelOpenBtn &&
+        !settingsPanelOpenBtn.contains(e.target)) {
+        settingsPanel.classList.remove('open');
+      }
+    });
+  }
+
+  // Initialize WebSocket monitoring panel functionality with toggle behavior :-)
   const initWebSocketPanel = () => {
     const websocketPanel = document.getElementById('websocketPanel');
     const websocketPanelOpenBtn = document.getElementById('websocketPanelOpenBtn');
@@ -227,13 +552,15 @@ const GPTResearcher = (() => {
     // Ensure it starts hidden
     websocketPanel.classList.remove('open');
 
+    // Toggle panel when clicking the main button
     websocketPanelOpenBtn.addEventListener('click', (e) => {
       e.preventDefault();
       e.stopPropagation();
-      console.log("Opening WebSocket panel");
-      websocketPanel.classList.add('open');
+      console.log("Toggling WebSocket panel");
+      websocketPanel.classList.toggle('open');
     });
 
+    // Close button inside panel
     websocketPanelToggle.addEventListener('click', (e) => {
       e.preventDefault();
       e.stopPropagation();
@@ -405,10 +732,23 @@ const GPTResearcher = (() => {
     }
   }
 
-  // Load conversation history from cookie
+  // Load conversation history from storage
   const loadConversationHistory = () => {
     try {
-      const storedHistory = getCookie('conversationHistory');
+      // Prefer localStorage for larger history data
+      let storedHistory = localStorage.getItem('conversationHistory');
+      
+      // Fallback to cookie if not in localStorage (migration path)
+      if (!storedHistory) {
+          storedHistory = getCookie('conversationHistory');
+          if (storedHistory) {
+              console.log("Migrating history from cookie to localStorage");
+              localStorage.setItem('conversationHistory', storedHistory);
+              // Optional: Clear cookie after migration
+              // deleteCookie('conversationHistory'); 
+          }
+      }
+
       if (storedHistory && storedHistory.trim() !== '') {
         try {
           const parsedHistory = JSON.parse(storedHistory);
@@ -419,12 +759,10 @@ const GPTResearcher = (() => {
           } else {
             console.warn('History storage does not contain an array');
             conversationHistory = [];
-            deleteCookie('conversationHistory');
           }
         } catch (jsonError) {
           console.error('Invalid JSON in history storage:', jsonError);
           conversationHistory = [];
-          deleteCookie('conversationHistory');
         }
       } else {
         console.log('No research history found in storage');
@@ -433,48 +771,55 @@ const GPTResearcher = (() => {
     } catch (error) {
       console.error('Error loading research history from storage:', error);
       conversationHistory = [];
-      // If JSON parsing fails, delete the corrupt cookie
-      deleteCookie('conversationHistory');
     }
 
     // Force render after loading
     renderHistoryEntries();
   }
 
-  // Save conversation history to cookie
+  // Save conversation history to storage
   const saveConversationHistory = () => {
     try {
       if (conversationHistory.length === 0) {
-        deleteCookie('conversationHistory');
+        localStorage.removeItem('conversationHistory');
         console.debug('No history to save, deleted storage');
         return;
       }
 
-      // Only keep the last 20 entries
+      // Only keep the last 20 entries to prevent localStorage overflow
       let storageHistory = [...conversationHistory];
       if (storageHistory.length > 20) {
         storageHistory = storageHistory.slice(0, 20);
         console.debug('Trimmed history to last 20 entries');
       }
 
-      // Only keep minimal fields: prompt, links and timestamp
-      storageHistory = storageHistory.map(entry => ({
-        prompt: entry.prompt || '',
-        links: entry.links || {},
-        timestamp: entry.timestamp || new Date().toISOString()
-      }));
-
       const jsonString = JSON.stringify(storageHistory);
-      console.debug('History JSON size:', jsonString.length, 'characters');
-
-      setCookie('conversationHistory', jsonString, 30);
-
-      if (storageHistory.length > 0 && !isInitialLoad) {
-        showToast('Research history saved!');
+      
+      try {
+          localStorage.setItem('conversationHistory', jsonString);
+          console.debug('History saved to localStorage, size:', jsonString.length, 'characters');
+          
+          if (storageHistory.length > 0 && !isInitialLoad) {
+            showToast('Research history saved!');
+          }
+      } catch (e) {
+          console.error("LocalStorage quota exceeded or error:", e);
+          showToast('Error: History storage full. Oldest items may be removed.');
+          
+          // Try to save fewer items if quota exceeded
+          if (storageHistory.length > 1) {
+              const reducedHistory = storageHistory.slice(0, 5); // Drastically reduce
+              try {
+                  localStorage.setItem('conversationHistory', JSON.stringify(reducedHistory));
+                  console.log("Saved reduced history (5 items) due to quota");
+              } catch (retryErr) {
+                  console.error("Failed to save even reduced history");
+              }
+          }
       }
     } catch (error) {
       console.error('Error saving research history:', error);
-      showToast('Error saving history. Some entries may not be saved.');
+      showToast('Error saving history.');
     }
   }
 
@@ -608,10 +953,13 @@ const GPTResearcher = (() => {
     });
   }
 
-  // Load a research entry from history
+  // Load a research entry from history (NO new research, just cached data) :-)
   const loadResearchEntry = (index) => {
     const entry = conversationHistory[index];
     if (!entry) return;
+
+    // Show notification that we're loading from cache
+    showToast('📁 Loading research from history...', 2000);
 
     // Fill form with the entry data
     document.getElementById('task').value = entry.prompt; // Changed from entry.task for consistency
@@ -647,39 +995,99 @@ const GPTResearcher = (() => {
         }
     }
 
+    const reportContainer = document.getElementById('reportContainer');
+    const chatMessages = document.getElementById('chatMessages');
+    const outputDiv = document.getElementById('output');
+    
     // Clear current research/report areas
-    document.getElementById('output').innerHTML = '';
-    document.getElementById('reportContainer').innerHTML = '';
+    outputDiv.innerHTML = '';
+    reportContainer.innerHTML = '';
     document.getElementById('selectedImagesContainer').innerHTML = '';
     document.getElementById('selectedImagesContainer').style.display = 'none';
-
-    // Hide download bar and chat
+    
+    // Show a message in output that this is from cache
+    outputDiv.innerHTML = '<div class="agent_response" style="color: #34c759; font-weight: 600;">✅ Loaded from history - no new research performed</div>';
+    outputDiv.style.display = 'block';
+    
+    // Hide download bar initially (will show after content loads)
     const stickyDownloadsBar = document.getElementById('stickyDownloadsBar');
     if (stickyDownloadsBar) {
         stickyDownloadsBar.classList.remove('visible');
     }
-    const chatContainer = document.getElementById('chatContainer');
-    if (chatContainer) {
-        chatContainer.style.display = 'none';
+
+    // IMPORTANT: Do NOT reset to 'initial' - go straight to loading cached content
+    // updateState('initial'); // REMOVED - this was unnecessary
+
+    // Restore report if available (from cache - NO new research!) :-)
+    if (entry.content) {
+        currentReport = entry.content;
+        
+        // Render the report using showdown
+        const converter = new showdown.Converter({
+            ghCodeBlocks: true,
+            tables: true,
+            tasklists: true,
+            smartIndentationFix: true,
+            simpleLineBreaks: true,
+            openLinksInNewWindow: true
+        });
+        
+        const htmlContent = converter.makeHtml(entry.content);
+        reportContainer.innerHTML = htmlContent;
+        
+        // Show download/action buttons since we have content
+        if (entry.links) {
+            updateDownloadLink({ output: entry.links });
+        }
+        
+        // Enable copy buttons
+        const copyButton = document.getElementById('copyToClipboard');
+        if (copyButton) copyButton.classList.remove('disabled');
+        
+        const topCopyButton = document.getElementById('copyToClipboardTop');
+        if (topCopyButton) {
+            topCopyButton.style.display = 'inline-block';
+            topCopyButton.onclick = copyToClipboard;
+        }
+        
+        // Show JSON button
+        const jsonButtonContainer = document.getElementById('jsonButtonContainer');
+        if (jsonButtonContainer) jsonButtonContainer.style.display = 'block';
+        
+        // Update state to finished to show all UI elements
+        updateState('finished');
+        
+        // Show success message
+        showToast('✅ Research loaded from history', 2000);
+        
+        // Scroll to report
+        const reportContainerDiv = document.querySelector('.report-container');
+        if (reportContainerDiv) reportContainerDiv.scrollIntoView({ behavior: 'smooth' });
+    } else {
+        // No content saved in this history entry
+        showToast('⚠️ No report content found in history entry', 3000);
+        outputDiv.innerHTML = '<div class="agent_response" style="color: #ff9500;">⚠️ This history entry has no saved report content</div>';
     }
 
-    // Reset UI state and report-specific buttons
-    updateState('initial'); // This will hide copy buttons etc.
+    // Restore chat history if available (Not currently stored, but setting up structure)
+    if (entry.chatHistory && Array.isArray(entry.chatHistory)) {
+        if (chatMessages) {
+            chatMessages.innerHTML = '';
+            entry.chatHistory.forEach(msg => {
+                addChatMessage(msg.content, msg.role === 'user');
+            });
+        }
+    } else {
+        // Reset chat
+        if (chatMessages) chatMessages.innerHTML = '';
+        initChat(); // Re-initialize chat to add welcome message
+    }
 
     // Close the history panel
     const historyPanel = document.getElementById('historyPanel');
     if (historyPanel) {
         historyPanel.classList.remove('open');
     }
-
-    // Scroll to the form
-    const formElement = document.getElementById('form');
-    if (formElement) {
-        formElement.scrollIntoView({ behavior: 'smooth' });
-    }
-
-    // Inform user
-    showToast('Research parameters loaded. You can start the research again.');
   }
 
   // Copy entry content to clipboard
@@ -737,12 +1145,35 @@ const GPTResearcher = (() => {
       json: downloadLinks.json || ''
     };
 
+    // Capture chat history
+    const chatHistory = [];
+    const chatMessagesEl = document.getElementById('chatMessages');
+    if (chatMessagesEl) {
+        const messages = chatMessagesEl.querySelectorAll('.chat-message');
+        messages.forEach(msg => {
+            // Simple extraction - improvement would be to store raw data in data attributes
+            const isUser = msg.classList.contains('user-message');
+            let content = msg.innerHTML;
+            // Remove timestamp for storage
+            const timestampIdx = content.indexOf('<div class="chat-timestamp">');
+            if (timestampIdx > -1) {
+                content = content.substring(0, timestampIdx);
+            }
+            chatHistory.push({
+                role: isUser ? 'user' : 'assistant',
+                content: content.trim()
+            });
+        });
+    }
+
     console.debug('Saving history with links:', links);
 
     // Create history entry with timestamp
     const historyEntry = {
       prompt,
       links,
+      content: report || '', // Save the full report content
+      chatHistory: chatHistory,
       timestamp: new Date().toISOString()
     };
 
@@ -757,11 +1188,7 @@ const GPTResearcher = (() => {
     document.getElementById('historyPanel').classList.add('open');
 
     // Prompt user about storage method
-    if (cookiesEnabled) {
-      showToast('Research saved! Your history is stored in a browser cookie.');
-    } else {
-      showToast('Research saved! Your history is stored using localStorage.');
-    }
+    showToast('Research session saved!');
   }
 
   // Function to update the research icon spinning state
@@ -777,6 +1204,12 @@ const GPTResearcher = (() => {
   };
 
   const startResearch = () => {
+    // Prevent starting research if we're currently viewing history
+    if (isResearchActive) {
+      showToast('⚠️ Research already in progress');
+      return;
+    }
+
     document.getElementById('output').innerHTML = ''
     document.getElementById('reportContainer').innerHTML = ''
     dispose_socket?.() // Call previous dispose function if it exists
@@ -969,6 +1402,12 @@ const GPTResearcher = (() => {
       const tone = document.querySelector('select[name="tone"]').value
       const llm_provider_mode = document.querySelector('select[name="llm_provider_mode"]').value
       const agent = document.querySelector('input[name="agent"]:checked').value
+      const ollama_base_url = document.getElementById('ollama_base_url')?.value || ''
+      const ollama_model = document.getElementById('ollama_model')?.value || ''
+      const litellm_base_url = document.getElementById('litellm_base_url')?.value || ''
+      const litellm_api_key = document.getElementById('litellm_api_key')?.value || ''
+      const litellm_model = document.getElementById('litellm_model')?.value || ''
+      const firecrawl_server_url = document.getElementById('firecrawl_server_url')?.value || ''
       let source_urls = tags
 
       if (report_source !== 'sources' && source_urls.length > 0) {
@@ -992,6 +1431,29 @@ const GPTResearcher = (() => {
         agent: agent,
         query_domains: query_domains,
         llm_provider_mode: llm_provider_mode,
+      }
+
+      if (llm_provider_mode === 'ollama') {
+        requestData.ollama_base_url = ollama_base_url
+        if (ollama_model) {
+          requestData.ollama_model = ollama_model
+        }
+      } else if (llm_provider_mode === 'litellm') {
+        if (litellm_base_url) {
+          requestData.litellm_base_url = litellm_base_url.trim()
+        }
+        if (litellm_api_key) {
+          requestData.litellm_api_key = litellm_api_key
+        }
+        if (litellm_model) {
+          requestData.litellm_model = litellm_model
+        }
+      }
+
+      // Headers bag for retrievers
+      requestData.headers = requestData.headers || {};
+      if (firecrawl_server_url) {
+        requestData.headers.firecrawl_server_url = firecrawl_server_url.trim();
       }
 
       // Add MCP configuration if enabled
@@ -1875,7 +2337,7 @@ const GPTResearcher = (() => {
     return true;
   };
 
-  // Send a chat message
+  // Send a chat message with smart context :-)
   const sendChatMessage = () => {
     const chatInput = document.getElementById('chatInput');
     if (!chatInput || !chatInput.value.trim()) return;
@@ -1892,10 +2354,27 @@ const GPTResearcher = (() => {
     // Add loading indicator
     const loadingId = addLoadingIndicator();
 
-    // Prepare the message to send - include the current report for context :-)
+    // Smart context: Only include report for research-related questions
+    const lowerMessage = message.toLowerCase();
+    const isResearchQuestion = 
+      lowerMessage.includes('report') ||
+      lowerMessage.includes('research') ||
+      lowerMessage.includes('what') ||
+      lowerMessage.includes('how') ||
+      lowerMessage.includes('why') ||
+      lowerMessage.includes('when') ||
+      lowerMessage.includes('where') ||
+      lowerMessage.includes('who') ||
+      lowerMessage.includes('explain') ||
+      lowerMessage.includes('tell me') ||
+      lowerMessage.includes('summary') ||
+      lowerMessage.includes('summarize') ||
+      lowerMessage.length > 20; // Longer messages are likely questions
+
+    // Prepare the message to send
     const messageToSend = `chat ${JSON.stringify({ 
       message: message,
-      report: currentReport || ''
+      report: (isResearchQuestion && currentReport) ? currentReport : ''
     })}`;
 
     // Send message through WebSocket
@@ -2349,14 +2828,6 @@ const GPTResearcher = (() => {
         "args": ["-y", "@modelcontextprotocol/server-github"],
         "env": {
           "GITHUB_PERSONAL_ACCESS_TOKEN": "your_github_token_here"
-        }
-      },
-      tavily: {
-        "name": "tavily",
-        "command": "npx",
-        "args": ["-y", "tavily-mcp@0.1.2"],
-        "env": {
-          "TAVILY_API_KEY": "your_tavily_api_key_here"
         }
       },
       filesystem: {
