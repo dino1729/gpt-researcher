@@ -564,11 +564,46 @@ textarea.form-control {
 
 .settings-content .input-group {
     display: flex;
-    gap: 8px;
+    gap: 0;
 }
 
 .settings-content .input-group .form-control {
     flex: 1;
+    border-top-right-radius: 0;
+    border-bottom-right-radius: 0;
+}
+
+.settings-content .input-group .input-group-append {
+    display: flex;
+}
+
+.settings-content .input-group .input-group-append .btn {
+    border-top-left-radius: 0;
+    border-bottom-left-radius: 0;
+    border-left: none;
+    padding: 8px 12px;
+    transition: all 0.2s ease;
+}
+
+.settings-content .input-group .btn-outline-secondary {
+    background: var(--surface-color);
+    border: 1px solid var(--border-color);
+    color: var(--text-secondary);
+}
+
+.settings-content .input-group .btn-outline-secondary:hover {
+    background: var(--surface-color-hover);
+    color: var(--text-primary);
+}
+
+.settings-content .input-group .btn-success {
+    background: rgba(52, 199, 89, 0.2);
+    border: 1px solid rgba(52, 199, 89, 0.5);
+    color: #34c759;
+}
+
+.settings-content .input-group .btn-success:hover {
+    background: rgba(52, 199, 89, 0.3);
 }
 
 .settings-content .btn {

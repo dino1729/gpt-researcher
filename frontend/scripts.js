@@ -109,37 +109,95 @@ const GPTResearcher = (() => {
 
   const populateOllamaModels = (models) => {
     const modelsSelect = document.getElementById('ollama_model');
+    const embeddingSelect = document.getElementById('ollama_embedding_model');
+    const status = document.getElementById('ollamaModelsStatus');
+    const embeddingStatus = document.getElementById('ollamaEmbeddingStatus');
     if (!modelsSelect) return;
 
     modelsSelect.innerHTML = '';
-    const savedModel = localStorage.getItem('ollama_model');
 
     if (!models || models.length === 0) {
       const option = document.createElement('option');
       option.value = '';
       option.textContent = 'No models found';
       modelsSelect.appendChild(option);
+      modelsSelect.disabled = true;
+      if (status) status.textContent = 'No models found';
+      
+      if (embeddingSelect) {
+        embeddingSelect.innerHTML = '<option value="">No embedding models found</option>';
+        embeddingSelect.disabled = true;
+      }
+      if (embeddingStatus) embeddingStatus.textContent = 'No embedding models found';
       return;
     }
 
-    models.forEach((model) => {
-      const option = document.createElement('option');
-      option.value = model;
-      option.textContent = model;
-      modelsSelect.appendChild(option);
-    });
+    // Intelligently filter models: embedding models contain "embed" in the name
+    const llmModels = models.filter(m => !m.toLowerCase().includes('embed'));
+    const embeddingModels = models.filter(m => m.toLowerCase().includes('embed'));
+    const savedModel = localStorage.getItem('ollama_model');
 
-    if (savedModel && models.includes(savedModel)) {
-      modelsSelect.value = savedModel;
+    // Populate LLM model dropdown (excluding embedding models)
+    if (llmModels.length === 0) {
+      const option = document.createElement('option');
+      option.value = '';
+      option.textContent = 'No LLM models found';
+      modelsSelect.appendChild(option);
+      modelsSelect.disabled = true;
     } else {
-      modelsSelect.selectedIndex = 0;
-      localStorage.setItem('ollama_model', modelsSelect.value);
+      llmModels.forEach((model) => {
+        const option = document.createElement('option');
+        option.value = model;
+        option.textContent = model;
+        modelsSelect.appendChild(option);
+      });
+      modelsSelect.disabled = false;
+
+      if (savedModel && llmModels.includes(savedModel)) {
+        modelsSelect.value = savedModel;
+      } else {
+        modelsSelect.selectedIndex = 0;
+        localStorage.setItem('ollama_model', modelsSelect.value);
+      }
+    }
+    if (status) status.textContent = `${llmModels.length} LLM model${llmModels.length === 1 ? '' : 's'}`;
+
+    // Populate embedding model dropdown (only embedding models)
+    if (embeddingSelect) {
+      embeddingSelect.innerHTML = '';
+      const savedEmbedding = localStorage.getItem('ollama_embedding_model');
+      
+      if (embeddingModels.length === 0) {
+        const option = document.createElement('option');
+        option.value = '';
+        option.textContent = 'No embedding models found';
+        embeddingSelect.appendChild(option);
+        embeddingSelect.disabled = true;
+        if (embeddingStatus) embeddingStatus.textContent = 'No embedding models (name must contain "embed")';
+      } else {
+        embeddingModels.forEach((model) => {
+          const option = document.createElement('option');
+          option.value = model;
+          option.textContent = model;
+          embeddingSelect.appendChild(option);
+        });
+        embeddingSelect.disabled = false;
+
+        if (savedEmbedding && embeddingModels.includes(savedEmbedding)) {
+          embeddingSelect.value = savedEmbedding;
+        } else {
+          embeddingSelect.selectedIndex = 0;
+          localStorage.setItem('ollama_embedding_model', embeddingSelect.value);
+        }
+        if (embeddingStatus) embeddingStatus.textContent = `${embeddingModels.length} embedding model${embeddingModels.length === 1 ? '' : 's'}`;
+      }
     }
   };
 
   const fetchOllamaModels = async () => {
     const baseUrlInput = document.getElementById('ollama_base_url');
     const modelsSelect = document.getElementById('ollama_model');
+    const embeddingSelect = document.getElementById('ollama_embedding_model');
     const llmSelect = document.getElementById('llm_provider_mode');
 
     if (!llmSelect || llmSelect.value !== 'ollama') {
@@ -159,6 +217,10 @@ const GPTResearcher = (() => {
     try {
       modelsSelect.disabled = true;
       modelsSelect.innerHTML = '<option value="">Loading models...</option>';
+      if (embeddingSelect) {
+        embeddingSelect.disabled = true;
+        embeddingSelect.innerHTML = '<option value="">Loading models...</option>';
+      }
 
       const response = await fetch(`/api/ollama/models?base_url=${encodeURIComponent(baseUrl)}`);
       if (!response.ok) {
@@ -179,6 +241,9 @@ const GPTResearcher = (() => {
       showToast('Unable to fetch Ollama models. Check server URL.');
     } finally {
       modelsSelect.disabled = false;
+      if (embeddingSelect) {
+        embeddingSelect.disabled = false;
+      }
     }
   };
 
@@ -204,7 +269,20 @@ const GPTResearcher = (() => {
     if (liteBaseInput && liteKeyInput && liteRememberInput) {
       const savedRemember = localStorage.getItem('litellm_remember');
       liteLLMSettings.remember = savedRemember === null ? true : savedRemember === 'true';
-      liteRememberInput.checked = liteLLMSettings.remember;
+      
+      // Update save button appearance based on saved state
+      const updateSaveButtonState = () => {
+        if (liteLLMSettings.remember) {
+          liteRememberInput.classList.add('btn-success');
+          liteRememberInput.classList.remove('btn-outline-secondary');
+          liteRememberInput.title = 'Settings saved (click to disable)';
+        } else {
+          liteRememberInput.classList.remove('btn-success');
+          liteRememberInput.classList.add('btn-outline-secondary');
+          liteRememberInput.title = 'Save settings (click to enable)';
+        }
+      };
+      updateSaveButtonState();
 
       if (liteLLMSettings.remember) {
         const savedLiteBase = localStorage.getItem('litellm_base_url');
@@ -217,7 +295,7 @@ const GPTResearcher = (() => {
       }
 
       const persistLiteLLM = () => {
-        if (!liteRememberInput.checked) return;
+        if (!liteLLMSettings.remember) return;
         localStorage.setItem('litellm_base_url', liteBaseInput.value.trim());
         localStorage.setItem('litellm_api_key', liteKeyInput.value);
       };
@@ -230,10 +308,11 @@ const GPTResearcher = (() => {
         liteLLMSettings.apiKey = liteKeyInput.value;
         persistLiteLLM();
       });
-      liteRememberInput.addEventListener('change', () => {
-        liteLLMSettings.remember = liteRememberInput.checked;
-        localStorage.setItem('litellm_remember', liteRememberInput.checked.toString());
-        if (!liteRememberInput.checked) {
+      liteRememberInput.addEventListener('click', () => {
+        liteLLMSettings.remember = !liteLLMSettings.remember;
+        localStorage.setItem('litellm_remember', liteLLMSettings.remember.toString());
+        updateSaveButtonState();
+        if (!liteLLMSettings.remember) {
           localStorage.removeItem('litellm_base_url');
           localStorage.removeItem('litellm_api_key');
         } else {
@@ -245,7 +324,7 @@ const GPTResearcher = (() => {
         const savedModel = localStorage.getItem('litellm_model');
         if (savedModel) liteModelSelect.value = savedModel;
         liteModelSelect.addEventListener('change', () => {
-          if (liteRememberInput.checked && liteModelSelect.value) {
+          if (liteLLMSettings.remember && liteModelSelect.value) {
             localStorage.setItem('litellm_model', liteModelSelect.value);
           }
         });
@@ -263,10 +342,13 @@ const GPTResearcher = (() => {
 
     const populateLiteLLMModels = (models) => {
       const select = document.getElementById('litellm_model');
+      const embeddingSelect = document.getElementById('litellm_embedding_model');
       const status = document.getElementById('litellmModelsStatus');
+      const embeddingStatus = document.getElementById('litellmEmbeddingStatus');
       if (!select) return;
       select.innerHTML = '';
       liteLLMSettings.models = models || [];
+      
       if (!models || models.length === 0) {
         select.disabled = true;
         const option = document.createElement('option');
@@ -274,36 +356,97 @@ const GPTResearcher = (() => {
         option.textContent = 'No models found';
         select.appendChild(option);
         if (status) status.textContent = 'No models returned';
+        
+        if (embeddingSelect) {
+          embeddingSelect.innerHTML = '<option value="">No embedding models found</option>';
+          embeddingSelect.disabled = true;
+        }
+        if (embeddingStatus) embeddingStatus.textContent = 'No embedding models returned';
         return;
       }
-      models.forEach((m) => {
+      
+      // Intelligently filter models: embedding models contain "embed" in the name
+      const llmModels = models.filter(m => !m.toLowerCase().includes('embed'));
+      const embeddingModels = models.filter(m => m.toLowerCase().includes('embed'));
+      
+      // Populate LLM model dropdown (excluding embedding models)
+      if (llmModels.length === 0) {
         const option = document.createElement('option');
-        option.value = m;
-        option.textContent = m;
+        option.value = '';
+        option.textContent = 'No LLM models found';
         select.appendChild(option);
-      });
-      select.disabled = false;
-      const savedModel = localStorage.getItem('litellm_model');
-      if (savedModel && models.includes(savedModel)) {
-        select.value = savedModel;
+        select.disabled = true;
       } else {
+        llmModels.forEach((m) => {
+          const option = document.createElement('option');
+          option.value = m;
+          option.textContent = m;
+          select.appendChild(option);
+        });
+        select.disabled = false;
+      }
+      
+      const savedModel = localStorage.getItem('litellm_model');
+      if (savedModel && llmModels.includes(savedModel)) {
+        select.value = savedModel;
+      } else if (llmModels.length > 0) {
         select.selectedIndex = 0;
-        if (liteRememberInput?.checked) {
+        if (liteLLMSettings.remember) {
           localStorage.setItem('litellm_model', select.value);
         }
       }
-      if (status) status.textContent = `${models.length} models available`;
+      if (status) status.textContent = `${llmModels.length} LLM model${llmModels.length === 1 ? '' : 's'}`;
+
+      // Populate embedding model dropdown (only embedding models)
+      if (embeddingSelect) {
+        embeddingSelect.innerHTML = '';
+        const savedEmbedding = localStorage.getItem('litellm_embedding_model');
+        
+        if (embeddingModels.length === 0) {
+          const option = document.createElement('option');
+          option.value = '';
+          option.textContent = 'No embedding models found';
+          embeddingSelect.appendChild(option);
+          embeddingSelect.disabled = true;
+          if (embeddingStatus) embeddingStatus.textContent = 'No embedding models (name must contain "embed")';
+        } else {
+          embeddingModels.forEach((m) => {
+            const option = document.createElement('option');
+            option.value = m;
+            option.textContent = m;
+            embeddingSelect.appendChild(option);
+          });
+          
+          embeddingSelect.disabled = false;
+          if (savedEmbedding && embeddingModels.includes(savedEmbedding)) {
+            embeddingSelect.value = savedEmbedding;
+          } else {
+            embeddingSelect.selectedIndex = 0;
+            if (liteLLMSettings.remember) {
+              localStorage.setItem('litellm_embedding_model', embeddingSelect.value);
+            }
+          }
+          if (embeddingStatus) embeddingStatus.textContent = `${embeddingModels.length} embedding model${embeddingModels.length === 1 ? '' : 's'}`;
+        }
+      }
     };
 
     const fetchLiteLLMModels = async () => {
       const status = document.getElementById('litellmModelsStatus');
+      const embeddingStatus = document.getElementById('litellmEmbeddingStatus');
       const select = document.getElementById('litellm_model');
+      const embeddingSelect = document.getElementById('litellm_embedding_model');
       if (!liteBaseInput || !select) return;
       const baseUrl = (liteBaseInput.value || DEFAULT_LITELLM_BASE_URL).trim();
       const apiKey = liteKeyInput?.value || '';
       if (status) status.textContent = `Querying ${baseUrl}...`;
       select.disabled = true;
       select.innerHTML = '<option value="">Loading models...</option>';
+      if (embeddingSelect) {
+        embeddingSelect.disabled = true;
+        embeddingSelect.innerHTML = '<option value="">Loading models...</option>';
+        if (embeddingStatus) embeddingStatus.textContent = 'Loading...';
+      }
       try {
         const resp = await fetch('/api/litellm/models', {
           method: 'POST',
@@ -318,8 +461,12 @@ const GPTResearcher = (() => {
         console.error('Failed to fetch LiteLLM models', err);
         populateLiteLLMModels([]);
         if (status) status.textContent = `Error fetching models: ${err.message}`;
+        if (embeddingStatus) embeddingStatus.textContent = `Error fetching models`;
       } finally {
         select.disabled = false;
+        if (embeddingSelect) {
+          embeddingSelect.disabled = false;
+        }
       }
     };
 
@@ -359,6 +506,28 @@ const GPTResearcher = (() => {
         const selectedModel = modelsSelect.value;
         if (selectedModel) {
           localStorage.setItem('ollama_model', selectedModel);
+        }
+      });
+    }
+
+    // Add event listener for Ollama embedding model selection
+    const ollamaEmbeddingSelect = document.getElementById('ollama_embedding_model');
+    if (ollamaEmbeddingSelect) {
+      ollamaEmbeddingSelect.addEventListener('change', () => {
+        const selectedEmbedding = ollamaEmbeddingSelect.value;
+        if (selectedEmbedding) {
+          localStorage.setItem('ollama_embedding_model', selectedEmbedding);
+        }
+      });
+    }
+
+    // Add event listener for LiteLLM embedding model selection
+    const litellmEmbeddingSelect = document.getElementById('litellm_embedding_model');
+    if (litellmEmbeddingSelect) {
+      litellmEmbeddingSelect.addEventListener('change', () => {
+        const selectedEmbedding = litellmEmbeddingSelect.value;
+        if (selectedEmbedding && liteLLMSettings.remember) {
+          localStorage.setItem('litellm_embedding_model', selectedEmbedding);
         }
       });
     }
@@ -1404,9 +1573,11 @@ const GPTResearcher = (() => {
       const agent = document.querySelector('input[name="agent"]:checked').value
       const ollama_base_url = document.getElementById('ollama_base_url')?.value || ''
       const ollama_model = document.getElementById('ollama_model')?.value || ''
+      const ollama_embedding_model = document.getElementById('ollama_embedding_model')?.value || ''
       const litellm_base_url = document.getElementById('litellm_base_url')?.value || ''
       const litellm_api_key = document.getElementById('litellm_api_key')?.value || ''
       const litellm_model = document.getElementById('litellm_model')?.value || ''
+      const litellm_embedding_model = document.getElementById('litellm_embedding_model')?.value || ''
       const firecrawl_server_url = document.getElementById('firecrawl_server_url')?.value || ''
       let source_urls = tags
 
@@ -1438,6 +1609,9 @@ const GPTResearcher = (() => {
         if (ollama_model) {
           requestData.ollama_model = ollama_model
         }
+        if (ollama_embedding_model) {
+          requestData.ollama_embedding_model = ollama_embedding_model
+        }
       } else if (llm_provider_mode === 'litellm') {
         if (litellm_base_url) {
           requestData.litellm_base_url = litellm_base_url.trim()
@@ -1447,6 +1621,9 @@ const GPTResearcher = (() => {
         }
         if (litellm_model) {
           requestData.litellm_model = litellm_model
+        }
+        if (litellm_embedding_model) {
+          requestData.litellm_embedding_model = litellm_embedding_model
         }
       }
 

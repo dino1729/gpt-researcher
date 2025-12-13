@@ -49,32 +49,41 @@
             <div class="form-group" id="litellmSettings" style="display: none;">
                 <label for="litellm_base_url" class="agent-question">LiteLLM server</label>
                 <input type="text" id="litellm_base_url" class="form-control highlight-connection" placeholder="http://host.docker.internal:4000/v1" autocomplete="on">
-                <button type="button" id="refreshLiteLLMModels" class="btn btn-secondary" style="margin-top: 10px; width: 100%;">Fetch models</button>
                 <label for="litellm_api_key" class="agent-question mt-3">LiteLLM API key</label>
-                <input type="password" id="litellm_api_key" class="form-control highlight-connection" placeholder="Enter API key" autocomplete="on">
-                <div class="form-check mt-2">
-                    <input class="form-check-input" type="checkbox" id="litellmSaveSession" checked>
-                    <label class="form-check-label" for="litellmSaveSession">
-                        Save LiteLLM settings
-                    </label>
+                <div class="input-group">
+                    <input type="password" id="litellm_api_key" class="form-control highlight-connection" placeholder="Enter API key" autocomplete="on">
+                    <div class="input-group-append">
+                        <button type="button" id="litellmSaveSession" class="btn btn-outline-secondary" title="Save settings">
+                            <i class="fas fa-save"></i>
+                        </button>
+                    </div>
                 </div>
-                <label for="litellm_model" class="agent-question mt-3">LiteLLM model</label>
+                <button type="button" id="refreshLiteLLMModels" class="btn btn-secondary" style="margin-top: 10px; width: 100%;">Fetch models</button>
+                <label for="litellm_model" class="agent-question mt-3">LLM model</label>
                 <select id="litellm_model" class="form-control highlight-connection" disabled>
                     <option value="">Fetch models to populate list</option>
                 </select>
                 <small id="litellmModelsStatus" class="text-muted"></small>
-                <small class="text-muted">Used only when LiteLLM is selected.</small>
+                <label for="litellm_embedding_model" class="agent-question mt-3">Embedding model</label>
+                <select id="litellm_embedding_model" class="form-control highlight-connection" disabled>
+                    <option value="">Fetch models to populate list</option>
+                </select>
+                <small id="litellmEmbeddingStatus" class="text-muted"></small>
             </div>
             <div class="form-group" id="ollamaSettings" style="display: none;">
                 <label for="ollama_base_url" class="agent-question">Ollama server</label>
                 <input type="text" id="ollama_base_url" class="form-control highlight-connection" placeholder="http://host.docker.internal:11434" autocomplete="on">
                 <button type="button" id="refreshOllamaModels" class="btn btn-secondary" style="margin-top: 10px; width: 100%;">Fetch models</button>
-                <small class="text-muted">Provide the Ollama host to query available models.</small>
-                <label for="ollama_model" class="agent-question mt-3">Ollama model</label>
+                <label for="ollama_model" class="agent-question mt-3">LLM model</label>
                 <select id="ollama_model" class="form-control highlight-connection" disabled>
                     <option value="">Fetch models to populate list</option>
                 </select>
                 <small id="ollamaModelsStatus" class="text-muted"></small>
+                <label for="ollama_embedding_model" class="agent-question mt-3">Embedding model</label>
+                <select id="ollama_embedding_model" class="form-control highlight-connection" disabled>
+                    <option value="">Fetch models to populate list</option>
+                </select>
+                <small id="ollamaEmbeddingStatus" class="text-muted"></small>
             </div>
             <div class="form-group">
                 <label for="firecrawl_server_url" class="agent-question">Firecrawl server (self-hosted)</label>

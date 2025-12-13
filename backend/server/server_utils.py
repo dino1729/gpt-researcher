@@ -22,9 +22,11 @@ def apply_llm_provider_mode(
     llm_provider_mode: str,
     ollama_base_url: Optional[str] = None,
     ollama_model: Optional[str] = None,
+    ollama_embedding_model: Optional[str] = None,
     litellm_base_url: Optional[str] = None,
     litellm_api_key: Optional[str] = None,
     litellm_model: Optional[str] = None,
+    litellm_embedding_model: Optional[str] = None,
 ) -> None:
     """
     Apply environment variable overrides based on the selected LLM provider mode.
@@ -33,6 +35,11 @@ def apply_llm_provider_mode(
         llm_provider_mode: Either 'ollama' for local models or 'litellm' for online models :-)
         ollama_base_url: Optional override for the Ollama server URL.
         ollama_model: Optional override for the Ollama model to use for all roles.
+        ollama_embedding_model: Optional override for the Ollama embedding model.
+        litellm_base_url: Optional override for the LiteLLM server URL.
+        litellm_api_key: Optional override for the LiteLLM API key.
+        litellm_model: Optional override for the LiteLLM model to use for all roles.
+        litellm_embedding_model: Optional override for the LiteLLM embedding model.
     """
     def _with_provider_prefix(provider: str, value: Optional[str]) -> Optional[str]:
         """
@@ -78,10 +85,15 @@ def apply_llm_provider_mode(
                 os.environ["STRATEGIC_LLM"] = prefixed_strategic
                 logger.info(f"Using Ollama strategic LLM: {prefixed_strategic}")
         
-        if os.getenv("OLLAMA_EMBEDDING"):
+        # Embedding selection for Ollama: prefer user selection, then env vars
+        if ollama_embedding_model:
+            prefixed_embedding = _with_provider_prefix("ollama", ollama_embedding_model)
+            os.environ["EMBEDDING"] = prefixed_embedding
+            logger.info(f"Using Ollama embedding model (user selected): {prefixed_embedding}")
+        elif os.getenv("OLLAMA_EMBEDDING"):
             prefixed_embedding = _with_provider_prefix("ollama", os.getenv("OLLAMA_EMBEDDING"))
             os.environ["EMBEDDING"] = prefixed_embedding
-            logger.info(f"Using Ollama embedding: {prefixed_embedding}")
+            logger.info(f"Using Ollama embedding (from env): {prefixed_embedding}")
     
     elif llm_provider_mode == "litellm":
         # Use LiteLLM proxy as an OpenAI-compatible endpoint
@@ -116,14 +128,21 @@ def apply_llm_provider_mode(
                 os.environ["STRATEGIC_LLM"] = os.getenv("LITELLM_STRATEGIC_LLM")
                 logger.info(f"Using LiteLLM strategic LLM: {os.getenv('LITELLM_STRATEGIC_LLM')}")
 
-        # Embedding selection: prefer explicit, else derive a sane default
-        if litellm_model and "embedding" in litellm_model:
+        # Embedding selection: prefer explicit user selection, then env vars, then smart defaults
+        if litellm_embedding_model:
+            # User explicitly selected an embedding model from the dropdown
+            os.environ["EMBEDDING"] = _with_provider_prefix("openai", litellm_embedding_model)
+            logger.info(f"Using LiteLLM embedding model (user selected): {os.environ.get('EMBEDDING')}")
+        elif litellm_model and "embedding" in litellm_model:
+            # User selected LLM happens to be an embedding model
             os.environ["EMBEDDING"] = _with_provider_prefix("openai", litellm_model)
-            logger.info(f"Using LiteLLM embedding (from model): {os.environ.get('EMBEDDING')}")
+            logger.info(f"Using LiteLLM embedding (from LLM model): {os.environ.get('EMBEDDING')}")
         elif os.getenv("LITELLM_EMBEDDING"):
+            # Fall back to environment variable
             os.environ["EMBEDDING"] = os.getenv("LITELLM_EMBEDDING")
-            logger.info(f"Using LiteLLM embedding: {os.getenv('LITELLM_EMBEDDING')}")
+            logger.info(f"Using LiteLLM embedding (from env): {os.getenv('LITELLM_EMBEDDING')}")
         elif not os.getenv("EMBEDDING"):
+            # Final fallback to a sane default
             os.environ["EMBEDDING"] = "openai:text-embedding-3-large"
             logger.info(f"Defaulting embedding to: {os.environ.get('EMBEDDING')}")
     
@@ -247,9 +266,11 @@ async def handle_start_command(websocket, data: str, manager):
         llm_provider_mode,
         ollama_base_url,
         ollama_model,
+        ollama_embedding_model,
         litellm_base_url,
         litellm_api_key,
         litellm_model,
+        litellm_embedding_model,
     ) = extract_command_data(json_data)
 
     if not task or not report_type:
@@ -261,9 +282,11 @@ async def handle_start_command(websocket, data: str, manager):
         llm_provider_mode,
         ollama_base_url,
         ollama_model,
+        ollama_embedding_model,
         litellm_base_url,
         litellm_api_key,
         litellm_model,
+        litellm_embedding_model,
     )
 
     # Create logs handler with websocket and task
@@ -535,7 +558,9 @@ def extract_command_data(json_data: Dict) -> tuple:
         json_data.get("llm_provider_mode", "litellm"),
         json_data.get("ollama_base_url"),
         json_data.get("ollama_model"),
+        json_data.get("ollama_embedding_model"),
         json_data.get("litellm_base_url"),
         json_data.get("litellm_api_key"),
         json_data.get("litellm_model"),
+        json_data.get("litellm_embedding_model"),
     )

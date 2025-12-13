@@ -58,3 +58,7 @@ uvicorn.pid
 # Locally downloaded fonts for PDF generation
 fonts/*.ttf
 fonts/*.otf
+
+.claude/
+.pytest_cache/
+
