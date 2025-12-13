@@ -51,6 +51,13 @@ const GPTResearcher = (() => {
       return false;
     });
 
+    // Setup stop button
+    document.getElementById('stopButton').addEventListener('click', (e) => {
+      e.preventDefault();
+      stopResearch();
+      return false;
+    });
+
     document
       .getElementById('copyToClipboard')
       .addEventListener('click', copyToClipboard)
@@ -1422,6 +1429,35 @@ const GPTResearcher = (() => {
     dispose_socket = listenToSockEvents() // Assign the new dispose function
   }
 
+  const stopResearch = () => {
+    if (!isResearchActive) {
+      showToast('No active research to stop');
+      return;
+    }
+
+    // Close the WebSocket connection
+    if (dispose_socket) {
+      dispose_socket();
+    }
+
+    // Update state
+    isResearchActive = false;
+    updateState('error'); // Use error state to show research was stopped
+    updateResearchIcon(false);
+
+    // Add message to output
+    addAgentResponse({
+      output: '⚠️ Research stopped by user',
+    });
+
+    // Show toast notification
+    showToast('Research stopped successfully');
+
+    // Show begin button, hide stop button
+    document.getElementById('submitButton').style.display = 'inline-block';
+    document.getElementById('stopButton').style.display = 'none';
+  }
+
   const listenToSockEvents = () => {
     const { protocol, host, pathname } = window.location
     const ws_uri = `${protocol === 'https:' ? 'wss:' : 'ws:'
@@ -1828,6 +1864,9 @@ const GPTResearcher = (() => {
         if (jsonContainer) {
           jsonContainer.style.display = 'none';
         }
+        // Show stop button, hide begin button
+        document.getElementById('submitButton').style.display = 'none';
+        document.getElementById('stopButton').style.display = 'inline-block';
         break
       case 'finished':
         status = 'Research finished!'
@@ -1865,6 +1904,9 @@ const GPTResearcher = (() => {
           // Initialize chat if not already initialized
           initChat();
         }
+        // Show begin button, hide stop button
+        document.getElementById('submitButton').style.display = 'inline-block';
+        document.getElementById('stopButton').style.display = 'none';
         break
       case 'error':
         status = 'Research failed!'
@@ -1872,6 +1914,9 @@ const GPTResearcher = (() => {
         isResearchActive = false;
         // Stop the research icon spinning
         updateResearchIcon(false);
+        // Show begin button, hide stop button
+        document.getElementById('submitButton').style.display = 'inline-block';
+        document.getElementById('stopButton').style.display = 'none';
         break
       case 'initial':
         status = ''
@@ -1889,6 +1934,9 @@ const GPTResearcher = (() => {
         if (initialJsonContainer) {
           initialJsonContainer.style.display = 'none';
         }
+        // Show begin button, hide stop button
+        document.getElementById('submitButton').style.display = 'inline-block';
+        document.getElementById('stopButton').style.display = 'none';
         break
       default:
         setReportActionsStatus('disabled')
